@@ -1,12 +1,30 @@
-__pycache__
+# Python virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python cache / compiled files
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
-env/
-venv/
-ENV/
-.venv
-.git
+
+# Git
+.git/
 .gitignore
+
+# Docker
 .dockerignore
+
+# Environment / secrets
+.env
+
+# Logs
+*.log
+
+# Test / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
