@@ -1,0 +1,295 @@
+{
+    "schema_version": "0.2.0",
+    "_notes": "v0.2 — added Hindi/Punjabi translations to Rice Blast as a first test. Wheat/Cotton translations not done yet.",
+    "crops": {
+        "rice": {
+            "crop_name_common": "Rice",
+            "crop_name_scientific": "Oryza sativa",
+            "diseases": {
+                "rice_blast": {
+                    "disease_id": "rice_blast",
+                    "disease_name_common": "Rice Blast",
+                    "disease_name_scientific": "Magnaporthe oryzae",
+                    "pathogen_type": "fungal",
+                    "vulnerable_growth_stages": [
+                        "tillering",
+                        "booting",
+                        "heading"
+                    ],
+                    "recommendations": {
+                        "monitoring": [
+                            {
+                                "step": "Scout field edges and low-lying patches every 3-4 days during tillering-to-booting stage; look for diamond-shaped grey-centered lesions on leaves.",
+                                "priority": 1
+                            }
+                        ],
+                        "cultural": [
+                            {
+                                "step": "Avoid excess nitrogen application; split nitrogen doses instead of applying all at once, since lush growth increases blast susceptibility.",
+                                "priority": 1
+                            },
+                            {
+                                "step": "Ensure proper field drainage; avoid continuous flooding which favors fungal spore spread.",
+                                "priority": 2
+                            }
+                        ],
+                        "biological": [
+                            {
+                                "step": "Apply Pseudomonas fluorescens or Trichoderma-based bio-fungicide as a preventive spray if early lesions are spotted.",
+                                "priority": 1
+                            }
+                        ],
+                        "mechanical": [
+                            {
+                                "step": "Remove and destroy severely infected plant debris after harvest to reduce carry-over inoculum for next season.",
+                                "priority": 1
+                            }
+                        ],
+                        "chemical": [
+                            {
+                                "step": "Tricyclazole 75% WP at recommended label dose, only if biological/cultural steps fail and risk is high or critical.",
+                                "priority": 1,
+                                "requires_expert_review": true
+                            }
+                        ]
+                    },
+                    "translations": {
+                        "_note": "DRAFT — needs native speaker review before real farmer use.",
+                        "hi": {
+                            "disease_name_common": "धान का ब्लास्ट रोग",
+                            "recommendations": {
+                                "monitoring": [
+                                    "हर 3-4 दिन में खेत के किनारों और निचले हिस्सों का निरीक्षण करें, खासकर कल्ले फूटने से लेकर बालियां निकलने की अवस्था के दौरान; पत्तियों पर हीरे के आकार के धब्बे देखें जिनके बीच का भाग स्लेटी रंग का हो।"
+                                ],
+                                "cultural": [
+                                    "नाइट्रोजन की अधिक मात्रा से बचें; एक साथ पूरी खुराक देने की बजाय नाइट्रोजन को कई हिस्सों में बांटकर दें, क्योंकि अधिक हरी-भरी बढ़वार से ब्लास्ट रोग की आशंका बढ़ जाती है।",
+                                    "खेत की उचित जल निकासी सुनिश्चित करें; लगातार पानी भरा रहने से बचें क्योंकि इससे फफूंद के बीजाणु फैलते हैं।"
+                                ],
+                                "biological": [
+                                    "यदि शुरुआती धब्बे दिखें तो रोकथाम के लिए स्यूडोमोनास फ्लोरोसेंस या ट्राइकोडर्मा आधारित जैव-फफूंदनाशी का छिड़काव करें।"
+                                ],
+                                "mechanical": [
+                                    "अगली फसल के लिए रोग के स्रोत को कम करने हेतु कटाई के बाद गंभीर रूप से संक्रमित पौधों के अवशेषों को हटाकर नष्ट कर दें।"
+                                ],
+                                "chemical": [
+                                    "यदि जैविक/सांस्कृतिक उपाय असफल हों और जोखिम 'उच्च' या 'गंभीर' हो, तभी अनुशंसित लेबल खुराक पर ट्राइसाइक्लाज़ोल 75% डब्ल्यूपी का उपयोग करें।"
+                                ]
+                            }
+                        },
+                        "pa": {
+                            "disease_name_common": "ਝੋਨੇ ਦਾ ਬਲਾਸਟ ਰੋਗ",
+                            "recommendations": {
+                                "monitoring": [
+                                    "ਹਰ 3-4 ਦਿਨਾਂ ਬਾਅਦ ਖੇਤ ਦੇ ਕਿਨਾਰਿਆਂ ਅਤੇ ਨੀਵੇਂ ਹਿੱਸਿਆਂ ਦੀ ਜਾਂਚ ਕਰੋ, ਖਾਸ ਕਰਕੇ ਕਲੇ ਫੁੱਟਣ ਤੋਂ ਬੂਟਿੰਗ ਅਵਸਥਾ ਤੱਕ; ਪੱਤਿਆਂ 'ਤੇ ਹੀਰੇ ਵਰਗੇ ਦਾਗ ਦੇਖੋ ਜਿਨ੍ਹਾਂ ਦਾ ਵਿਚਕਾਰਲਾ ਹਿੱਸਾ ਸਲੇਟੀ ਰੰਗ ਦਾ ਹੋਵੇ।"
+                                ],
+                                "cultural": [
+                                    "ਵਧੇਰੇ ਨਾਈਟ੍ਰੋਜਨ ਪਾਉਣ ਤੋਂ ਬਚੋ; ਸਾਰੀ ਖੁਰਾਕ ਇਕੱਠੀ ਪਾਉਣ ਦੀ ਬਜਾਏ ਨਾਈਟ੍ਰੋਜਨ ਨੂੰ ਵੰਡ ਕੇ ਪਾਓ, ਕਿਉਂਕਿ ਵਧੇਰੇ ਹਰਿਆਲੀ ਵਾਧੇ ਨਾਲ ਬਲਾਸਟ ਰੋਗ ਦਾ ਖ਼ਤਰਾ ਵੱਧਦਾ ਹੈ।",
+                                    "ਖੇਤ ਦੀ ਸਹੀ ਨਿਕਾਸੀ ਯਕੀਨੀ ਬਣਾਓ; ਲਗਾਤਾਰ ਪਾਣੀ ਖੜ੍ਹਾ ਰਹਿਣ ਤੋਂ ਬਚੋ ਕਿਉਂਕਿ ਇਸ ਨਾਲ ਉੱਲੀ ਦੇ ਬੀਜਾਣੂ ਫੈਲਦੇ ਹਨ।"
+                                ],
+                                "biological": [
+                                    "ਜੇ ਸ਼ੁਰੂਆਤੀ ਦਾਗ ਦਿਖਾਈ ਦੇਣ ਤਾਂ ਰੋਕਥਾਮ ਲਈ ਸੂਡੋਮੋਨਾਸ ਫਲੋਰੋਸੈਂਸ ਜਾਂ ਟ੍ਰਾਈਕੋਡਰਮਾ ਆਧਾਰਿਤ ਜੈਵਿਕ-ਉੱਲੀਨਾਸ਼ਕ ਦਾ ਛਿੜਕਾਅ ਕਰੋ।"
+                                ],
+                                "mechanical": [
+                                    "ਅਗਲੇ ਸੀਜ਼ਨ ਲਈ ਰੋਗ ਦੇ ਸਰੋਤ ਨੂੰ ਘਟਾਉਣ ਵਾਸਤੇ ਵਾਢੀ ਤੋਂ ਬਾਅਦ ਬੁਰੀ ਤਰ੍ਹਾਂ ਸੰਕਰਮਿਤ ਪੌਦਿਆਂ ਦੀ ਰਹਿੰਦ-ਖੂੰਹਦ ਨੂੰ ਹਟਾ ਕੇ ਨਸ਼ਟ ਕਰੋ।"
+                                ],
+                                "chemical": [
+                                    "ਜੇ ਜੈਵਿਕ/ਸੱਭਿਆਚਾਰਕ ਉਪਾਅ ਅਸਫਲ ਹੋਣ ਅਤੇ ਖ਼ਤਰਾ 'ਉੱਚਾ' ਜਾਂ 'ਗੰਭੀਰ' ਹੋਵੇ, ਤਾਂ ਹੀ ਸਿਫਾਰਿਸ਼ ਕੀਤੀ ਲੇਬਲ ਖੁਰਾਕ 'ਤੇ ਟ੍ਰਾਈਸਾਈਕਲਾਜ਼ੋਲ 75% ਡਬਲਯੂਪੀ ਵਰਤੋ।"
+                                ]
+                            }
+                        }
+                    },
+                    "validation_status": "draft-unverified",
+                    "sources": [
+                        "PLACEHOLDER — replace with ICAR advisory link"
+                    ]
+                },
+                "rice_brown_planthopper": {
+                    "disease_id": "rice_brown_planthopper",
+                    "disease_name_common": "Brown Planthopper",
+                    "disease_name_scientific": "Nilaparvata lugens",
+                    "pathogen_type": "insect_pest",
+                    "vulnerable_growth_stages": [
+                        "vegetative",
+                        "panicle_initiation",
+                        "booting",
+                        "flowering"
+                    ],
+                    "recommendations": {
+                        "monitoring": [
+                            {
+                                "step": "Regularly inspect the base of rice plants for brown planthoppers and watch for yellowing or drying patches that may spread through the field.",
+                                "priority": 1
+                            }
+                        ],
+                        "cultural": [
+                            {
+                                "step": "Avoid excessive nitrogen fertilization and apply nitrogen in split doses to reduce the chance of planthopper population build-up.",
+                                "priority": 1
+                            },
+                            {
+                                "step": "Avoid excessively close planting and maintain suitable spacing to reduce conditions that favor planthopper outbreaks.",
+                                "priority": 2
+                            },
+                            {
+                                "step": "When heavy infestation occurs, field drainage for a few days can help reduce planthopper infestation.",
+                                "priority": 3
+                            },
+                            {
+                                "step": "Use rice varieties with resistance or tolerance to brown planthopper where suitable varieties are available for the region.",
+                                "priority": 4
+                            }
+                        ],
+                        "biological": [
+                            {
+                                "step": "Conserve natural predators such as mirid bugs, spiders, and damselflies by avoiding unnecessary broad-spectrum insecticide sprays.",
+                                "priority": 1
+                            }
+                        ],
+                        "mechanical": [
+                            {
+                                "step": "Use light traps near the field to monitor and reduce adult planthopper populations, especially during peak migration periods.",
+                                "priority": 1
+                            }
+                        ],
+                        "chemical": [
+                            {
+                                "step": "If infestation is severe and other methods have failed, apply a recommended insecticide such as Pymetrozine or Buprofezin at label dose.",
+                                "priority": 1,
+                                "requires_expert_review": true
+                            }
+                        ]
+                    },
+                    "validation_status": "draft-unverified",
+                    "sources": [
+                        "NIPHM Integrated Pest Management Package for Rice",
+                        "ICAR Kharif Agro-Advisory for Farmers 2025"
+                    ]
+                }
+            }
+        },
+        "wheat": {
+            "crop_name_common": "Wheat",
+            "crop_name_scientific": "Triticum aestivum",
+            "diseases": {
+                "wheat_yellow_rust": {
+                    "disease_id": "wheat_yellow_rust",
+                    "disease_name_common": "Yellow Rust (Stripe Rust)",
+                    "disease_name_scientific": "Puccinia striiformis",
+                    "pathogen_type": "fungal",
+                    "vulnerable_growth_stages": [
+                        "tillering",
+                        "jointing",
+                        "booting"
+                    ],
+                    "recommendations": {
+                        "monitoring": [
+                            {
+                                "step": "Scout upper leaf surfaces weekly from tillering onward for yellow-orange powdery pustules arranged in stripes along leaf veins.",
+                                "priority": 1
+                            }
+                        ],
+                        "cultural": [
+                            {
+                                "step": "Prefer rust-resistant/tolerant wheat varieties at sowing time where available.",
+                                "priority": 1
+                            },
+                            {
+                                "step": "Avoid very early or very late sowing dates for your region.",
+                                "priority": 2
+                            },
+                            {
+                                "step": "Apply balanced nitrogen in split doses rather than one large dose.",
+                                "priority": 3
+                            }
+                        ],
+                        "biological": [
+                            {
+                                "step": "Biological options for foliar rust are limited; rely primarily on resistant varieties and timely fungicide instead.",
+                                "priority": 1
+                            }
+                        ],
+                        "mechanical": [
+                            {
+                                "step": "Remove volunteer wheat plants near the field, as they can harbor rust spores between seasons.",
+                                "priority": 1
+                            }
+                        ],
+                        "chemical": [
+                            {
+                                "step": "Propiconazole 25% EC or Tebuconazole, at recommended label dose, if risk is high or critical.",
+                                "priority": 1,
+                                "requires_expert_review": true
+                            }
+                        ]
+                    },
+                    "validation_status": "draft-unverified",
+                    "sources": [
+                        "PLACEHOLDER — replace with ICAR-IIWBR advisory link"
+                    ]
+                }
+            }
+        },
+        "cotton": {
+            "crop_name_common": "Cotton",
+            "crop_name_scientific": "Gossypium hirsutum",
+            "diseases": {
+                "cotton_bollworm": {
+                    "disease_id": "cotton_bollworm",
+                    "disease_name_common": "Bollworm (American / Pink bollworm)",
+                    "disease_name_scientific": "Helicoverpa armigera / Pectinophora gossypiella",
+                    "pathogen_type": "insect_pest",
+                    "vulnerable_growth_stages": [
+                        "squaring",
+                        "flowering",
+                        "boll_formation"
+                    ],
+                    "recommendations": {
+                        "monitoring": [
+                            {
+                                "step": "Install pheromone traps (5-8 per hectare) from squaring stage onward; check twice weekly for moth catches.",
+                                "priority": 1
+                            }
+                        ],
+                        "cultural": [
+                            {
+                                "step": "Intercrop or border-crop with a trap crop (e.g. marigold) to draw moths away from cotton.",
+                                "priority": 1
+                            },
+                            {
+                                "step": "Destroy crop residue and fallen bolls after harvest to remove overwintering pupae.",
+                                "priority": 2
+                            }
+                        ],
+                        "biological": [
+                            {
+                                "step": "Release Trichogramma parasitoid wasps at early egg-laying stage.",
+                                "priority": 1
+                            },
+                            {
+                                "step": "Spray NPV or Bt-based biopesticide if early larvae are detected.",
+                                "priority": 2
+                            }
+                        ],
+                        "mechanical": [
+                            {
+                                "step": "Hand-pick and destroy visibly infested bolls and larvae where feasible.",
+                                "priority": 1
+                            }
+                        ],
+                        "chemical": [
+                            {
+                                "step": "Recommended insecticide (e.g. Emamectin benzoate) at label dose, rotated between sprays to slow resistance, only if risk is high or critical.",
+                                "priority": 1,
+                                "requires_expert_review": true
+                            }
+                        ]
+                    },
+                    "validation_status": "draft-unverified",
+                    "sources": [
+                        "PLACEHOLDER — replace with ICAR-CICR advisory link"
+                    ]
+                }
+            }
+        }
+    }
+}

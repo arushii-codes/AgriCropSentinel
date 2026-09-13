@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgriCropSentinel — Extension Officer Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        #map { height: 480px; width: 100%; border-radius: 0.75rem; }
+        .severity-critical { background-color: #fee2e2; color: #991b1b; }
+        .severity-high { background-color: #ffedd5; color: #9a3412; }
+        .severity-medium { background-color: #fef9c3; color: #854d0e; }
+        .severity-low { background-color: #dcfce7; color: #166534; }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-900 min-h-screen">
+
+    <!-- Header -->
+    <header class="bg-emerald-800 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-black tracking-tight">AgriCropSentinel</h1>
+                <p class="text-xs text-emerald-200">Extension Officer GIS Dashboard &amp; Expert Validation Hub</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="loadDashboardData()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2 rounded-lg transition">
+                    🔄 Refresh Data
+                </button>
+                <a href="/image-analysis/dashboard" class="bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-2 rounded-lg transition">
+                    📸 Image Analysis Logs
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+        <!-- Control Strip -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <label for="regionSelect" class="text-sm font-bold text-slate-700">Filter Region:</label>
+                <select id="regionSelect" onchange="loadDashboardData()" class="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white font-medium focus:ring-2 focus:ring-emerald-600 focus:outline-none">
+                    <option value="">All Regions</option>
+                    <option value="Rohtak">Rohtak</option>
+                    <option value="Karnal">Karnal</option>
+                    <option value="Sonipat">Sonipat</option>
+                    <option value="Panipat">Panipat</option>
+                    <option value="Ambala">Ambala</option>
+                </select>
+            </div>
+            <div id="summaryStrip" class="flex flex-wrap gap-2 text-xs font-bold">
+                <!-- Summary chips dynamically injected -->
+            </div>
+        </div>
+
+        <!-- Section 1: GIS Outbreak Map & Hotspots Table -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Map Card -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-base font-bold mb-3 text-slate-800 flex items-center gap-2">
+                    🗺️ Spatial Disease &amp; Pest Hotspot Map
+                </h2>
+                <div id="map"></div>
+            </div>
+
+            <!-- Hotspots Table Card -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <h2 class="text-base font-bold mb-3 text-slate-800 flex items-center gap-2">
+                        📋 Active Outbreak Clusters
+                    </h2>
+                    <div class="overflow-x-auto max-h-[420px] overflow-y-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500 sticky top-0">
+                                <tr>
+                                    <th class="px-3 py-2">Disease / Pest</th>
+                                    <th class="px-3 py-2">Severity</th>
+                                    <th class="px-3 py-2 text-right">Cases</th>
+                                    <th class="px-3 py-2 text-right">Location</th>
+                                </tr>
+                            </thead>
+                            <tbody id="hotspotTableBody" class="divide-y divide-slate-100">
+                                <tr><td colspan="4" class="p-4 text-center text-slate-400">Loading hotspots...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2: Human-in-the-Loop Expert Validation Queue -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+            <div class="flex items-center justify-between border-b pb-3">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        👨‍🌾 Expert Review Queue (Low-Confidence Cases)
+                    </h2>
+                    <p class="text-xs text-slate-500">Cases flagged with prediction confidence below 60% requiring human validation</p>
+                </div>
+                <span id="pendingCountBadge" class="bg-amber-100 text-amber-800 text-xs font-extrabold px-3 py-1 rounded-full">
+                    0 Pending
+                </span>
+            </div>
+
+            <div id="reviewQueueContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <p class="text-sm text-slate-400 col-span-full">Checking pending cases...</p>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        let map, markers = [];
+
+        function initMap() {
+            map = L.map('map').setView([29.2, 76.8], 8);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+        }
+
+        const severityColors = {
+            critical: '#dc2626',
+            high: '#f97316',
+            medium: '#eab308',
+            low: '#22c55e'
+        };
+
+        function getMarkerIcon(severity) {
+            const color = severityColors[severity?.toLowerCase()] || '#22c55e';
+            return L.divIcon({
+                className: '',
+                html: `<div style="background-color:${color}; width:20px; height:20px; border-radius:50%; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+        }
+
+        async function loadDashboardData() {
+            const region = document.getElementById('regionSelect').value;
+            fetchHotspots(region);
+            fetchReviewQueue();
+        }
+
+        async function fetchHotspots(region) {
+            try {
+                const url = region ? `/gis/hotspots?region=${encodeURIComponent(region)}` : '/gis/hotspots';
+                const resp = await fetch(url);
+                const data = await resp.json();
+                const hotspots = data.hotspots || [];
+
+                // Clear map markers
+                markers.forEach(m => map.removeLayer(m));
+                markers = [];
+
+                const tableBody = document.getElementById('hotspotTableBody');
+                tableBody.innerHTML = '';
+
+                if (hotspots.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-slate-400">No active hotspots reported for this region.</td></tr>';
+                    return;
+                }
+
+                let bounds = [];
+                hotspots.forEach(h => {
+                    const lat = h.location.lat;
+                    const lon = h.location.lon;
+                    bounds.push([lat, lon]);
+
+                    // Add Marker
+                    const marker = L.marker([lat, lon], { icon: getMarkerIcon(h.severity) })
+                        .addTo(map)
+                        .bindPopup(`<b>${h.disease_or_pest_name}</b><br>Severity: ${h.severity}<br>Cases: ${h.case_count}`);
+                    markers.push(marker);
+
+                    // Add Table Row
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-50 cursor-pointer transition';
+                    tr.onclick = () => { map.setView([lat, lon], 12); marker.openPopup(); };
+                    tr.innerHTML = `
+                        <td class="px-3 py-2 font-bold text-slate-800">${h.disease_or_pest_name.replace(/_/g, ' ')}</td>
+                        <td class="px-3 py-2"><span class="px-2 py-0.5 rounded text-xs font-bold severity-${h.severity.toLowerCase()}">${h.severity}</span></td>
+                        <td class="px-3 py-2 text-right font-extrabold">${h.case_count}</td>
+                        <td class="px-3 py-2 text-right font-mono text-xs text-slate-500">${lat.toFixed(2)}, ${lon.toFixed(2)}</td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+
+                if (bounds.length > 0) {
+                    map.fitBounds(bounds, { padding: [30, 30] });
+                }
+            } catch (err) {
+                console.error("Hotspots fetch error:", err);
+            }
+        }
+
+        async function fetchReviewQueue() {
+            try {
+                const resp = await fetch('/advisory/pending');
+                const data = await resp.json();
+                const cases = data.pending_cases || [];
+
+                document.getElementById('pendingCountBadge').innerText = `${cases.length} Pending`;
+                const container = document.getElementById('reviewQueueContainer');
+                container.innerHTML = '';
+
+                if (cases.length === 0) {
+                    container.innerHTML = '<div class="col-span-full text-center py-6 text-slate-400 font-medium">✨ All low-confidence predictions have been reviewed by experts!</div>';
+                    return;
+                }
+
+                cases.forEach(c => {
+                    const card = document.createElement('div');
+                    card.className = 'border border-slate-200 rounded-lg p-4 bg-slate-50 space-y-3';
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-xs font-mono text-slate-400">ID: #${c.case_id}</p>
+                                <h3 class="font-bold text-slate-800 text-sm">${c.disease_or_pest_name}</h3>
+                            </div>
+                            <span class="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded">Conf: ${(c.confidence * 100).toFixed(0)}%</span>
+                        </div>
+                        <p class="text-xs text-slate-600">Risk Level: <strong>${c.risk_level}</strong> | Lang: <strong>${c.language}</strong></p>
+                        <div class="pt-2 flex gap-2">
+                            <button onclick="resolveCase('${c.case_id}', 'approved')" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 rounded transition">Approve</button>
+                            <button onclick="resolveCase('${c.case_id}', 'corrected')" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold py-1.5 rounded transition">Correct</button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            } catch (err) {
+                console.error("Review queue fetch error:", err);
+            }
+        }
+
+        async function resolveCase(caseId, decision) {
+            let notes = prompt(`Notes for ${decision} case #${caseId}:`, decision === 'approved' ? 'Confirmed by officer' : 'Re-diagnosed');
+            if (notes === null) return;
+            
+            let corrected = null;
+            if (decision === 'corrected') {
+                corrected = prompt('Enter corrected disease name:');
+            }
+
+            try {
+                const resp = await fetch('/advisory/resolve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ case_id: caseId, decision: decision, expert_notes: notes, corrected_disease_name: corrected })
+                });
+                const res = await resp.json();
+                if (resp.ok) {
+                    alert(`Case #${caseId} resolved as ${decision}`);
+                    fetchReviewQueue();
+                } else {
+                    alert(`Error: ${res.detail}`);
+                }
+            } catch (err) {
+                alert(`Failed to resolve case: ${err}`);
+            }
+        }
+
+        window.onload = () => {
+            initMap();
+            loadDashboardData();
+        };
+    </script>
+</body>
+</html>
