@@ -13,7 +13,9 @@ AgriCropSentinel is a unified agricultural AI platform combining:
 
 ```
 AgriCropSentinel/
+├── docker-compose.yml        # Docker Compose configuration for Backend & MongoDB
 ├── backend/                  # Unified FastAPI Python Backend
+│   ├── Dockerfile            # Container definition for Python backend
 │   ├── main.py               # Main API Application Entrypoint
 │   ├── image_analysis/       # CNN Model (39 Disease Classes) + Voice Helper + Gemini AI
 │   ├── ipm/                  # Integrated Pest Management KB & Lookup
@@ -40,20 +42,35 @@ AgriCropSentinel/
 
 ## 🚀 How to Run
 
-### 1. Start the Backend API (FastAPI)
+### 1. Start the Backend API & Database (Docker - Recommended)
+
+No separate installation of Python, MongoDB (`mongod`), or dependencies needed!
 
 ```bash
-cd C:\Users\Dell\AgriCropSentinel\backend
-pip install -r requirements.txt
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# Run from project root
+docker compose up -d --build
 ```
 - Interactive Swagger API Docs: `http://localhost:8000/docs`
 - Unified Disease Detection Endpoint: `POST http://localhost:8000/image-analysis/analyze`
 
+To stop the containerized services:
+```bash
+docker compose down
+```
+
+#### Manual Run (Without Docker)
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+---
+
 ### 2. Launch the Flutter Mobile App
 
 ```bash
-cd C:\Users\Dell\AgriCropSentinel\frontend
+cd frontend
 flutter pub get
 flutter run
 ```

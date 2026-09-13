@@ -1,0 +1,42 @@
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: agricropsentinel-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=farmerdb
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agricropsentinel-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017
+      - MONGO_DB=farmerdb
+      - PORT=8000
+      - HOST=0.0.0.0
+    env_file:
+      - ./backend/.env
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./backend/uploadvoices:/app/uploadvoices
+      - ./backend/uploadimages:/app/uploadimages
+
+volumes:
+  mongo_data:

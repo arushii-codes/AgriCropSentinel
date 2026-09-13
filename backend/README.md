@@ -1,31 +1,53 @@
-# 🚜 SIH 2025: Farmer Assistance Platform Backend
+# 🚜 AgriCropSentinel Backend
 
-FastAPI backend for Smart India Hackathon 2025—empowering Indian farmers with AI-driven crop diagnostics, voice queries, and secure data management.
+FastAPI backend for AgriCropSentinel—empowering Indian farmers with AI-driven crop diagnostics, voice queries, and secure data management.
 
 ## 🌾 Key Features
 - 🔐 JWT Authentication & User Management
-- 📁 Image Upload for Crop Disease Detection (AI integration ready)
-- 🎤 Voice Recording & Speech-to-Text for Farming Queries
-- 🗺 Location Services for Geo-Targeted Advice
+- 📁 Image Upload & CNN Crop Disease Detection (39 Classes)
+- 🎤 Gemini AI Farmer Voice & Chatbot Integration
+- 🗺 GIS Outbreak Intelligence & Spatial Clustering
 - 📊 Full REST APIs with Swagger Docs
 
-## 🛠 Setup & Run
-1. Clone: `git clone https://github.com/CodeMudit/SIH-2025.git && cd SIH-2025`
-2. Install: `pip install -r requirements.txt`
-3. Run: `uvicorn main:app --reload`
-4. API Docs: http://127.0.0.1:8000/docs
+## 🐳 Docker Setup (Recommended)
 
-## 📁 Structure
-- `main.py`: FastAPI app
-- `auth/`: Auth routes, DB models, utils
-- `requirements.txt`: Deps (FastAPI, SQLAlchemy, Pydantic, etc.)
+No need to install Python, MongoDB, or any system dependencies on your machine. Everything runs inside Docker containers.
 
-## 🚀 Deploy
-- Free on Render.com: Connect GitHub repo, set build: `pip install -r requirements.txt`, start: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- Env vars: Add DATABASE_URL, JWT_SECRET in Render dashboard.
+### Prerequisites
+- [Docker](https://docs.docker.com/get-docker/) & Docker Compose
 
-## 🤝 Contribute
-Fork > Branch > PR. Ideal for GSoC/ML projects!
+### Running with Docker Compose
+
+1. **Start all services (Backend + MongoDB)**:
+   ```bash
+   docker compose up -d --build
+   ```
+
+2. **Access API Documentation**:
+   - Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
+   - ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+
+3. **Check Container Status & Logs**:
+   ```bash
+   docker compose ps
+   docker compose logs -f backend
+   ```
+
+4. **Stop Services**:
+   ```bash
+   docker compose down
+   ```
 
 ---
-SIH 2025 | Built by CodeMudit | Open Source ❤️
+
+## 🛠 Manual Setup (Without Docker)
+If you prefer running Python directly:
+1. Ensure MongoDB is running locally on port 27017.
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Start FastAPI server:
+   ```bash
+   uvicorn main:app --reload --host 0.0.0.0 --port 8000
+   ```
