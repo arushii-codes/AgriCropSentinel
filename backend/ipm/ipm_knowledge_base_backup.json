@@ -290,65 +290,6 @@
                     ]
                 }
             }
-        },
-        "apple": {
-            "crop_name_common": "Apple",
-            "crop_name_scientific": "Malus domestica",
-            "diseases": {
-                "apple_black_rot": {
-                    "disease_id": "apple_black_rot",
-                    "disease_name_common": "Apple Black Rot",
-                    "disease_name_scientific": "Diplodia seriata",
-                    "pathogen_type": "fungal",
-                    "vulnerable_growth_stages": [
-                        "flowering",
-                        "fruiting",
-                        "maturity"
-                    ],
-                    "recommendations": {
-                        "monitoring": [
-                            {
-                                "step": "Inspect leaves, fruit and branches regularly for dark lesions, fruit rot and cankers, especially during warm and humid weather.",
-                                "priority": 1
-                            }
-                        ],
-                        "cultural": [
-                            {
-                                "step": "Prune dead or cankered branches to improve air circulation and reduce sources of infection.",
-                                "priority": 1
-                            },
-                            {
-                                "step": "Remove fallen, mummified and infected fruit from the orchard.",
-                                "priority": 2
-                            }
-                        ],
-                        "biological": [
-                            {
-                                "step": "Use locally recommended biological disease-management products where appropriate and according to agricultural extension guidance.",
-                                "priority": 1
-                            }
-                        ],
-                        "mechanical": [
-                            {
-                                "step": "Remove and safely destroy severely infected fruit and plant material to reduce disease sources.",
-                                "priority": 1
-                            }
-                        ],
-                        "chemical": [
-                            {
-                                "step": "Use only locally approved fungicides according to the product label and agricultural extension guidance when disease pressure is high or critical.",
-                                "priority": 1,
-                                "requires_expert_review": true
-                            }
-                        ]
-                    },
-                    "translations": {},
-                    "validation_status": "draft-unverified",
-                    "sources": [
-                        "Agricultural extension guidance required for local product and dose recommendations"
-                    ]
-                }
-            }
         }
     }
 }

@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+﻿from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
@@ -12,6 +12,7 @@ from news.routes import router as news_router
 from fusion.fusion import router as fusion_router
 from advisory.routes import router as advisory_router
 from gis.routes import router as gis_router
+from farmer.routes import router as farmer_router
 
 # Ensure static directories exist
 os.makedirs("uploadvoices", exist_ok=True)
@@ -42,6 +43,7 @@ app.include_router(news_router, prefix="/news", tags=["news"])
 app.include_router(fusion_router)
 app.include_router(advisory_router, prefix="/advisory", tags=["advisory"])
 app.include_router(gis_router, prefix="/gis", tags=["gis"])
+app.include_router(farmer_router)
 
 @app.get("/")
 async def root():
@@ -59,3 +61,5 @@ async def root():
             "Live Weather & Disease Risk Advisory"
         ]
     }
+
+

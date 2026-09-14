@@ -1,441 +1,961 @@
 import 'dart:typed_data';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:dio/dio.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_tts/flutter_tts.dart';
 
-class AnalysisResult {
-  final String predictedClass;
-  final String detailedInfo;
-  final String cause;
-  final String cure;
-  final String riskLevel;
-  final String urgency;
-  final List<String> ipmSteps;
-  final String? voiceUrl;
-
-  AnalysisResult({
-    required this.predictedClass,
-    required this.detailedInfo,
-    required this.cause,
-    required this.cure,
-    required this.riskLevel,
-    required this.urgency,
-    required this.ipmSteps,
-    this.voiceUrl,
-  });
-
-  factory AnalysisResult.fromJson(Map<String, dynamic> json) {
-    final analysis = json['analysis_result'] ?? {};
-    final predicted = analysis['predicted_class'] ?? json['predicted_class'] ?? 'Healthy / Unknown';
-    final info = json['detailed_info'] ?? json['summary_text'] ?? '';
-    final cause = analysis['cause'] ?? '';
-    final cure = analysis['cure'] ?? '';
-    
-    final riskFusion = json['risk_fusion'] ?? {};
-    final riskLevel = riskFusion['risk_level'] ?? 'medium';
-    final urgency = riskFusion['urgency'] ?? 'Monitor crop';
-
-    final ipm = json['ipm_advisory'] ?? {};
-    final stepsList = (ipm['ipm_steps'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
-
-    final voiceUrl = json['voice_url'];
-
-    return AnalysisResult(
-      predictedClass: predicted.toString(),
-      detailedInfo: info.toString(),
-      cause: cause.toString(),
-      cure: cure.toString(),
-      riskLevel: riskLevel.toString(),
-      urgency: urgency.toString(),
-      ipmSteps: stepsList,
-      voiceUrl: voiceUrl?.toString(),
-    );
-  }
-}
-
-enum ScreenState { initial, imageSelected, loading, result }
-
-class ImagePickerScreen extends StatefulWidget {
-  const ImagePickerScreen({super.key});
+class CameraScreen extends StatefulWidget {
+  const CameraScreen({super.key});
 
   @override
-  State<ImagePickerScreen> createState() => _ImagePickerScreenState();
+  State<CameraScreen> createState() => _CameraScreenState();
 }
 
-class _ImagePickerScreenState extends State<ImagePickerScreen> {
-  ScreenState _currentState = ScreenState.initial;
-  XFile? _selectedImage;
-Uint8List? _selectedImageBytes;
-  AnalysisResult? _analysisResult;
+class _CameraScreenState extends State<CameraScreen> {
+  static const String backendUrl = 'http://localhost:8000';
 
   final ImagePicker _picker = ImagePicker();
-  final Dio _dio = Dio();
-  
-  // Update API URL base if running on physical device vs emulator
-  final String apiUrl = "http://127.0.0.1:8000/image-analysis/analyze";
-Future<void> _pickImage(ImageSource source) async {
-  try {
-    final pickedFile = await _picker.pickImage(
-      source: source,
-      imageQuality: 85,
-    );
+  final FlutterTts _tts = FlutterTts();
 
-    if (pickedFile != null) {
-      final bytes = await pickedFile.readAsBytes();
+  Uint8List? _imageBytes;
+  Map<String, dynamic>? _result;
+
+  bool _loading = false;
+  bool _speaking = false;
+
+  String _selectedLanguage = 'hi';
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        imageQuality: 90,
+      );
+
+      if (image == null) return;
+
+      final bytes = await image.readAsBytes();
 
       setState(() {
-        _selectedImage = pickedFile;
-        _selectedImageBytes = bytes;
-        _currentState = ScreenState.imageSelected;
+        _imageBytes = bytes;
+        _result = null;
       });
+
+      await _analyzeImage();
+    } catch (e) {
+      _showError('Unable to select image: $e');
     }
-  } catch (e) {
-    _showErrorSnackbar('Failed to pick image: $e');
   }
-}
-Future<void> _analyzeImage() async {
-  if (_selectedImage == null || _selectedImageBytes == null) return;
 
-  setState(() => _currentState = ScreenState.loading);
+  Future<void> _analyzeImage() async {
+    if (_imageBytes == null) return;
 
-  try {
-    final fileName = _selectedImage!.name;
-
-    final formData = FormData.fromMap({
-      'file': MultipartFile.fromBytes(
-        _selectedImageBytes!,
-        filename: fileName,
-      ),
+    setState(() {
+      _loading = true;
+      _result = null;
     });
 
-    final response = await _dio.post(
-  apiUrl,
-  data: formData,
-);
-
-    if (response.statusCode == 200) {
-      setState(() {
-        _analysisResult = AnalysisResult.fromJson(response.data);
-        _currentState = ScreenState.result;
-      });
-    } else {
-      _handleError(
-        "Analysis failed. Server returned: ${response.statusCode}",
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse(
+          '$backendUrl/vision/analyze'
+          '?voice=true'
+          '&lang=$_selectedLanguage',
+        ),
       );
+
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          _imageBytes!,
+          filename: 'crop_image.jpg',
+        ),
+      );
+
+      final streamedResponse = await request.send();
+
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        setState(() {
+          _result = data;
+        });
+      } else {
+        throw Exception(
+          'Server returned ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      _showError('Disease analysis failed: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
-  } on DioException catch (e) {
-    _handleError("Network Error: ${e.message}");
-  } catch (e) {
-    _handleError("An unexpected error occurred: $e");
-  }
-}
-  void _handleError(String message) {
-    setState(() => _currentState = ScreenState.imageSelected);
-    _showErrorSnackbar(message);
   }
 
-  void _showErrorSnackbar(String message) {
+  Future<void> _speakResult() async {
+    if (_result == null) return;
+
+    final analysis = _result!['analysis_result'];
+
+    final disease =
+        analysis?['predicted_class'] ?? 'Unknown disease';
+
+    final confidence =
+        ((analysis?['confidence'] ?? 0) * 100).toStringAsFixed(1);
+
+    final risk =
+        _result!['risk_fusion']?['risk_level'] ?? 'Unknown';
+
+    final text =
+        'Crop health analysis complete. '
+        'Detected condition: $disease. '
+        'Confidence: $confidence percent. '
+        'Risk level: $risk.';
+
+    try {
+      setState(() {
+        _speaking = true;
+      });
+
+      await _tts.setLanguage(
+        _selectedLanguage == 'pa'
+            ? 'pa-IN'
+            : _selectedLanguage == 'hi'
+                ? 'hi-IN'
+                : 'en-IN',
+      );
+
+      await _tts.setSpeechRate(0.45);
+      await _tts.speak(text);
+
+      _tts.setCompletionHandler(() {
+        if (mounted) {
+          setState(() {
+            _speaking = false;
+          });
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _speaking = false;
+      });
+    }
+  }
+
+  Future<void> _stopSpeaking() async {
+    await _tts.stop();
+
+    setState(() {
+      _speaking = false;
+    });
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
-  void _resetState() {
-  setState(() {
-    _selectedImage = null;
-    _selectedImageBytes = null;
-    _analysisResult = null;
-    _currentState = ScreenState.initial;
-  });
-}
-
-  Color _getRiskColor(String level) {
-    switch (level.toLowerCase()) {
+  Color _riskColor(String risk) {
+    switch (risk.toLowerCase()) {
       case 'low':
-        return Colors.green;
+        return const Color(0xFF2E7D32);
       case 'medium':
-        return Colors.orange;
+        return const Color(0xFFF9A825);
       case 'high':
-        return Colors.deepOrange;
+        return const Color(0xFFE65100);
       case 'critical':
-        return Colors.red;
+        return const Color(0xFFC62828);
       default:
-        return Colors.orange;
+        return Colors.grey;
+    }
+  }
+
+  IconData _riskIcon(String risk) {
+    switch (risk.toLowerCase()) {
+      case 'low':
+        return Icons.check_circle;
+      case 'medium':
+        return Icons.warning_amber_rounded;
+      case 'high':
+        return Icons.warning;
+      case 'critical':
+        return Icons.dangerous;
+      default:
+        return Icons.info;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final analysis = _result?['analysis_result'];
+    final fusion = _result?['risk_fusion'];
+    final advisory = _result?['ipm_advisory'];
+
+    final disease =
+        analysis?['predicted_class'] ?? '';
+
+    final confidence =
+        ((analysis?['confidence'] ?? 0) as num).toDouble();
+
+    final risk =
+        fusion?['risk_level'] ?? '';
+
+    final score =
+        ((fusion?['fused_risk_score'] ?? 0) as num).toDouble();
+
+    final urgency =
+        fusion?['urgency'] ?? '';
+
+    final cause =
+        analysis?['cause'] ?? '';
+
+    final cure =
+        analysis?['cure'] ?? '';
+
+    final ipmSteps =
+        advisory?['ipm_steps'] is List
+            ? List<String>.from(advisory['ipm_steps'])
+            : <String>[];
+
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F7EF),
       appBar: AppBar(
-        title: const Text(
-          'Plant Disease & IPM Scanner',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: const Color(0xFFF9FAF8),
-        foregroundColor: Colors.black,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: switch (_currentState) {
-            ScreenState.initial => _buildInitialUI(),
-            ScreenState.imageSelected => _buildImagePreviewUI(),
-            ScreenState.loading => const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: Color(0xFF2E7D32)),
-                  SizedBox(height: 16),
-                  Text("Analyzing leaf & calculating IPM risk...", style: TextStyle(fontWeight: FontWeight.w500)),
-                ],
-              ),
-            ScreenState.result => _buildResultUI(),
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInitialUI() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Icon(
-          Icons.cloud_upload_outlined,
-          color: Color(0xFF2E7D32),
-          size: 80,
-        ),
-        const SizedBox(height: 20),
-        const Text(
-          'Upload Plant Image',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 10),
-        const Text(
-          'Take or select a clear photo of an affected leaf to detect diseases, risk levels, and IPM treatments.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 15, color: Colors.grey),
-        ),
-        const SizedBox(height: 40),
-        ElevatedButton.icon(
-          onPressed: () => _pickImage(ImageSource.gallery),
-          icon: const Icon(Icons.photo_library),
-          label: const Text('Choose from Gallery'),
-          style: _buttonStyle(),
-        ),
-        const SizedBox(height: 12),
-        ElevatedButton.icon(
-          onPressed: () => _pickImage(ImageSource.camera),
-          icon: const Icon(Icons.camera_alt),
-          label: const Text('Use Camera'),
-          style: _buttonStyle(isPrimary: false),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildImagePreviewUI() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text(
-          "Image Selected",
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 20),
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.memory(
-  _selectedImageBytes!,
-  fit: BoxFit.contain,
-),
+        backgroundColor: const Color(0xFFF5F7EF),
+        foregroundColor: const Color(0xFF243B24),
+        title: const Text(
+          'Crop Health',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 22,
           ),
         ),
-        const SizedBox(height: 20),
-        ElevatedButton.icon(
-          onPressed: _analyzeImage,
-          icon: const Icon(Icons.biotech),
-          label: const Text('Detect Disease & IPM Risk'),
-          style: _buttonStyle(),
-        ),
-        const SizedBox(height: 12),
-        TextButton(
-          onPressed: _resetState,
-          child: const Text('Select Different Image'),
-        ),
-      ],
-    );
-  }
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedLanguage,
+                items: const [
+                  DropdownMenuItem(
+                    value: 'en',
+                    child: Text('EN'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'hi',
+                    child: Text('हिं'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'pa',
+                    child: Text('ਪੰ'),
+                  ),
+                ],
+                onChanged: (value) async {
+                  if (value == null) return;
 
-  Widget _buildResultUI() {
-    if (_analysisResult == null) return _buildInitialUI();
+                  setState(() {
+                    _selectedLanguage = value;
+                  });
 
-    final riskColor = _getRiskColor(_analysisResult!.riskLevel);
-
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  if (_imageBytes != null) {
+                    await _analyzeImage();
+                  }
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 110),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                "Diagnostic Results 🌿",
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: riskColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: riskColor, width: 1.5),
+              _buildHeroCard(),
+
+              const SizedBox(height: 20),
+
+              if (_imageBytes != null)
+                _buildImagePreview(),
+
+              const SizedBox(height: 18),
+
+              if (_imageBytes == null)
+                _buildUploadCard(),
+
+              if (_loading)
+                _buildLoadingCard(),
+
+              if (_result != null && !_loading) ...[
+                _buildDetectionCard(
+                  disease,
+                  confidence,
                 ),
-                child: Text(
-                  _analysisResult!.riskLevel.toUpperCase(),
-                  style: TextStyle(color: riskColor, fontWeight: FontWeight.bold, fontSize: 13),
+
+                const SizedBox(height: 14),
+
+                _buildRiskCard(
+                  risk,
+                  score,
+                  urgency,
                 ),
-              ),
+
+                const SizedBox(height: 14),
+
+                _buildInfoCard(
+                  title: 'What caused it?',
+                  icon: Icons.biotech_outlined,
+                  text: cause,
+                ),
+
+                const SizedBox(height: 14),
+
+                _buildInfoCard(
+                  title: 'Recommended treatment',
+                  icon: Icons.medical_services_outlined,
+                  text: cure,
+                ),
+
+                const SizedBox(height: 14),
+
+                if (ipmSteps.isNotEmpty)
+                  _buildIpmCard(ipmSteps),
+
+                const SizedBox(height: 16),
+
+                _buildVoiceButton(),
+              ],
+
+              if (_imageBytes != null && !_loading)
+                const SizedBox(height: 12),
+
+              if (_imageBytes != null && !_loading)
+                _buildRetakeButton(),
             ],
           ),
-          const SizedBox(height: 16),
-          ClipRRect(
-  borderRadius: BorderRadius.circular(12),
-  child: Image.memory(
-    _selectedImageBytes!,
-    height: 180,
-    width: double.infinity,
-    fit: BoxFit.cover,
-  ),
-),
-          const SizedBox(height: 16),
-          _buildResultCard(
-            icon: Icons.bug_report,
-            iconColor: Colors.red.shade700,
-            title: "Detected Diagnosis",
-            content: _analysisResult!.predictedClass.replaceAll('_', ' '),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeroCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF355E3B),
+            Color(0xFF567D46),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+            color: Colors.black12,
           ),
-          _buildResultCard(
-            icon: Icons.warning_amber_rounded,
-            iconColor: riskColor,
-            title: "Urgency Action",
-            content: _analysisResult!.urgency,
-          ),
-          if (_analysisResult!.cure.isNotEmpty)
-            _buildResultCard(
-              icon: Icons.healing,
-              iconColor: const Color(0xFF2E7D32),
-              title: "Primary Treatment & Cure",
-              content: _analysisResult!.cure,
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(18),
             ),
-          if (_analysisResult!.ipmSteps.isNotEmpty)
-            Card(
-              elevation: 2,
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(14.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.shield_outlined, color: Colors.blueAccent),
-                        SizedBox(width: 8),
-                        Text(
-                          "Integrated Pest Management (IPM)",
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 20),
-                    ..._analysisResult!.ipmSteps.map((step) => Padding(
-                      padding: const EdgeInsets.only(bottom: 6.0),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text("• ", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2E7D32))),
-                          Expanded(child: Text(step, style: const TextStyle(fontSize: 14))),
-                        ],
-                      ),
-                    )),
-                  ],
+            child: const Icon(
+              Icons.eco,
+              color: Colors.white,
+              size: 32,
+            ),
+          ),
+          const SizedBox(width: 16),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'AI Crop Diagnosis',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
+                SizedBox(height: 5),
+                Text(
+                  'Upload a leaf image to detect diseases and assess crop risk.',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    height: 1.4,
+                  ),
+                ),
+              ],
             ),
-          _buildResultCard(
-            icon: Icons.psychology_outlined,
-            iconColor: Colors.purple.shade700,
-            title: "Gemini AI Agricultural Advisory",
-            content: _analysisResult!.detailedInfo,
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: _resetState,
-            icon: const Icon(Icons.refresh),
-            label: const Text("Scan Another Plant"),
-            style: _buttonStyle(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildResultCard({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String content,
-  }) {
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(14.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: iconColor),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+  Widget _buildUploadCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(
+          color: const Color(0xFFDDE5D8),
+        ),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 82,
+            height: 82,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEAF2E6),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.add_a_photo_outlined,
+              size: 38,
+              color: Color(0xFF355E3B),
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          const Text(
+            'Upload Crop Image',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF263626),
+            ),
+          ),
+
+          const SizedBox(height: 7),
+
+          const Text(
+            'Take a clear photo of the affected leaf',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.grey,
+            ),
+          ),
+
+          const SizedBox(height: 22),
+
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () =>
+                      _pickImage(ImageSource.camera),
+                  icon: const Icon(Icons.camera_alt),
+                  label: const Text('Camera'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        const Color(0xFF355E3B),
+                    foregroundColor: Colors.white,
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(16),
+                    ),
                   ),
                 ),
-              ],
+              ),
+
+              const SizedBox(width: 12),
+
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () =>
+                      _pickImage(ImageSource.gallery),
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: const Text('Gallery'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor:
+                        const Color(0xFF355E3B),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 15),
+                    side: const BorderSide(
+                      color: Color(0xFF355E3B),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImagePreview() {
+    return Container(
+      width: double.infinity,
+      height: 270,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(25),
+        color: Colors.grey.shade200,
+      ),
+      child: Image.memory(
+        _imageBytes!,
+        fit: BoxFit.cover,
+      ),
+    );
+  }
+
+  Widget _buildLoadingCard() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 18),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: const Column(
+        children: [
+          CircularProgressIndicator(
+            color: Color(0xFF355E3B),
+          ),
+          SizedBox(height: 16),
+          Text(
+            'Analyzing crop health...',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
             ),
-            const Divider(height: 20),
-            Text(content, style: const TextStyle(fontSize: 14, height: 1.3)),
-          ],
+          ),
+          SizedBox(height: 5),
+          Text(
+            'Checking disease, weather and risk factors',
+            style: TextStyle(
+              color: Colors.grey,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetectionCard(
+    String disease,
+    double confidence,
+  ) {
+    final percentage =
+        (confidence * 100).toStringAsFixed(1);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(23),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.search,
+                color: Color(0xFF355E3B),
+              ),
+              SizedBox(width: 8),
+              Text(
+                'AI Detection',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          Text(
+            _formatDiseaseName(disease),
+            style: const TextStyle(
+              fontSize: 23,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF263626),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          Row(
+            mainAxisAlignment:
+                MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'AI Confidence',
+                style: TextStyle(
+                  color: Colors.grey,
+                ),
+              ),
+              Text(
+                '$percentage%',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: LinearProgressIndicator(
+              value: confidence,
+              minHeight: 9,
+              backgroundColor: Colors.grey.shade200,
+              color: const Color(0xFF5B8C51),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRiskCard(
+    String risk,
+    double score,
+    String urgency,
+  ) {
+    final color = _riskColor(risk);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(23),
+        border: Border.all(
+          color: color.withOpacity(0.25),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                _riskIcon(risk),
+                color: color,
+                size: 28,
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'Overall Crop Risk',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          Row(
+            crossAxisAlignment:
+                CrossAxisAlignment.end,
+            children: [
+              Text(
+                risk.toUpperCase(),
+                style: TextStyle(
+                  color: color,
+                  fontSize: 30,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${(score * 100).toStringAsFixed(0)}%',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 25,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: LinearProgressIndicator(
+              value: score.clamp(0.0, 1.0),
+              minHeight: 10,
+              backgroundColor:
+                  color.withOpacity(0.12),
+              color: color,
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          Row(
+            children: [
+              Icon(
+                Icons.bolt,
+                size: 18,
+                color: color,
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  urgency,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCard({
+    required String title,
+    required IconData icon,
+    required String text,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
+                color: const Color(0xFF355E3B),
+              ),
+              const SizedBox(width: 9),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          Text(
+            text.isEmpty
+                ? 'Information unavailable.'
+                : text,
+            style: const TextStyle(
+              color: Colors.black87,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIpmCard(List<String> steps) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAF2E6),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.shield_outlined,
+                color: Color(0xFF355E3B),
+              ),
+              SizedBox(width: 9),
+              Text(
+                'Recommended IPM',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF29452B),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 15),
+
+          ...List.generate(
+            steps.length,
+            (index) {
+              return Padding(
+                padding:
+                    const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 27,
+                      height: 27,
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF355E3B),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '${index + 1}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        steps[index],
+                        style: const TextStyle(
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVoiceButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed:
+            _speaking ? _stopSpeaking : _speakResult,
+        icon: Icon(
+          _speaking
+              ? Icons.stop
+              : Icons.volume_up_outlined,
+        ),
+        label: Text(
+          _speaking
+              ? 'Stop Voice'
+              : 'Listen to Diagnosis',
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF355E3B),
+          foregroundColor: Colors.white,
+          padding:
+              const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(17),
+          ),
         ),
       ),
     );
   }
 
-  ButtonStyle _buttonStyle({bool isPrimary = true}) {
-    return ElevatedButton.styleFrom(
-      backgroundColor: isPrimary ? const Color(0xFF2E7D32) : Colors.white,
-      foregroundColor: isPrimary ? Colors.white : const Color(0xFF2E7D32),
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Color(0xFF2E7D32)),
+  Widget _buildRetakeButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () {
+          setState(() {
+            _imageBytes = null;
+            _result = null;
+          });
+        },
+        icon: const Icon(Icons.refresh),
+        label: const Text('Analyze Another Crop'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF355E3B),
+          padding:
+              const EdgeInsets.symmetric(vertical: 15),
+          side: const BorderSide(
+            color: Color(0xFF355E3B),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(17),
+          ),
+        ),
       ),
-      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
     );
+  }
+
+  String _formatDiseaseName(String value) {
+    if (value.isEmpty) return 'No disease detected';
+
+    return value
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map(
+          (word) => word.isEmpty
+              ? word
+              : '${word[0].toUpperCase()}${word.substring(1)}',
+        )
+        .join(' ');
+  }
+
+  @override
+  void dispose() {
+    _tts.stop();
+    super.dispose();
   }
 }

@@ -1,37 +1,94 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 
-Future<Map<String, dynamic>> fetchWeather(double lat, double lon) async {
-  final apiKey = "3f010e52c461f5f74f7afa9b54c03265";
-  final url =
-      "https://api.openweathermap.org/data/2.5/weather?lat=$lat&lon=$lon&units=metric&appid=$apiKey";
+/// FastAPI backend
+const String backendUrl = "http://localhost:8000";
 
-  final response = await http.get(Uri.parse(url));
+/// Fetch weather and weather-risk data for the farmer's
+/// current GPS coordinates.
+Future<Map<String, dynamic>> fetchWeather(
+  double lat,
+  double lon,
+) async {
+  final uri = Uri.parse(
+    "$backendUrl/weather/risk"
+    "?lat=$lat"
+    "&lon=$lon",
+  );
+
+  print("🌦️ Fetching weather from: $uri");
+
+  final response = await http.get(
+    uri,
+    headers: {
+      "Accept": "application/json",
+    },
+  );
+
+  print("🌦️ Weather response: ${response.statusCode}");
+  print("🌦️ Weather body: ${response.body}");
+
   if (response.statusCode == 200) {
-    return json.decode(response.body);
-  } else {
-    throw Exception("Failed to fetch weather");
+    final decoded = json.decode(response.body);
+
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+
+    throw Exception("Invalid weather response format.");
   }
+
+  throw Exception(
+    "Weather API failed: ${response.statusCode}",
+  );
 }
 
+/// Get the farmer's current GPS location.
 Future<Position> getUserLocation() async {
-  bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  // Check whether device location services are enabled.
+  final serviceEnabled =
+      await Geolocator.isLocationServiceEnabled();
+
   if (!serviceEnabled) {
-    throw Exception("Location services are disabled.");
+    throw Exception(
+      "Location services are disabled.",
+    );
   }
 
-  LocationPermission permission = await Geolocator.checkPermission();
+  // Check current permission.
+  LocationPermission permission =
+      await Geolocator.checkPermission();
+
+  // Ask for permission if not already granted.
   if (permission == LocationPermission.denied) {
     permission = await Geolocator.requestPermission();
+
     if (permission == LocationPermission.denied) {
-      throw Exception("Location permission denied.");
+      throw Exception(
+        "Location permission denied.",
+      );
     }
   }
 
+  // User permanently denied location permission.
   if (permission == LocationPermission.deniedForever) {
-    throw Exception("Location permissions permanently denied.");
+    throw Exception(
+      "Location permissions permanently denied.",
+    );
   }
 
-  return await Geolocator.getCurrentPosition();
+  // Get current GPS position.
+  final position =
+      await Geolocator.getCurrentPosition(
+    desiredAccuracy: LocationAccuracy.high,
+  );
+
+  print(
+    "📍 Farmer location: "
+    "${position.latitude}, ${position.longitude}",
+  );
+
+  return position;
 }

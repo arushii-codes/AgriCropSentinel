@@ -3,6 +3,7 @@ import 'package:farmer_app/services/api_service.dart';
 import 'package:farmer_app/services/storage_service.dart';
 import 'package:farmer_app/screens/homepage.dart';
 import 'package:farmer_app/screens/login.dart';
+import 'login.dart';
 // import 'package:farmer_app/widgets/login_popup.dart';
 // import 'package:farmer_app/screens/market_home.dart';
 
@@ -281,12 +282,13 @@ class _ProfilePageState extends State<ProfilePage> {
                     setState(() {
                       isLoggedIn = false;
                     });
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const CropDropApp(),
-                      ),
-                    );
+                    Navigator.pushAndRemoveUntil(
+  context,
+  MaterialPageRoute(
+    builder: (context) => const LoginScreen(),
+  ),
+  (route) => false,
+);
                   },
                 ),
               ),
