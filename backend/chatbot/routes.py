@@ -1,101 +1,565 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File
 import traceback
-from chatbot.models import ChatRequest, VoiceChatRequest
-from auth.database import db  # Reuse MongoDB for chat history
 import datetime
 import shutil
 import uuid
 import os
+
+from chatbot.models import ChatRequest, VoiceChatRequest
 from chatbot.app import get_gemini_response, transcribe_audio
-from image_analysis.voice_helper import generate_voice  # Reuse TTS from image analysis
+from image_analysis.voice_helper import generate_voice
+
+# MongoDB is OPTIONAL for chatbot.
+# Chat should continue working even if MongoDB is unavailable.
+try:
+    from auth.database import db
+except Exception as e:
+    db = None
+    print(f"[CHATBOT] MongoDB unavailable: {e}")
+
 
 router = APIRouter()
 
+
+# ============================================================
+# DIRECTORIES
+# ============================================================
+
 UPLOAD_AUDIO_DIR = "uploadaudio"
-os.makedirs(UPLOAD_AUDIO_DIR, exist_ok=True)
 
-def get_general_ai_response(prompt: str) -> str:
-    """General AI response using Gemini (non-agri fallback if needed)."""
-    return get_gemini_response(prompt)  # Direct call, no wrapping
+os.makedirs(
+    UPLOAD_AUDIO_DIR,
+    exist_ok=True
+)
 
-async def save_chat_to_db(chat_data: dict):
-    """Async helper to save chat to MongoDB."""
+
+# ============================================================
+# GENERAL AI RESPONSE
+# ============================================================
+
+def get_general_ai_response(
+    prompt: str,
+    language: str = "en",
+    context: str = None,
+) -> str:
+
     try:
-        await db["chat_history"].insert_one(chat_data)
-        print("✅ Chat saved to DB")
-    except Exception as e:
-        print(f"❌ DB save error: {e}")
 
-@router.post("/general")
-async def general_chat(request: ChatRequest):
-    try:
-        response = get_general_ai_response(request.prompt)
-        # Store in MongoDB (simplified, no translation fields)
-        await db["chat_history"].insert_one({
-            "type": "general",
-            "prompt": request.prompt,
-            "response": response,
-            "timestamp": datetime.datetime.now()
-        })
-        return {"response": response}
-    except Exception as e:
-        print(f"Error in /chat/general: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-@router.post("/voice_chat")
-async def voice_chat(audio: UploadFile = File(..., description="Audio file (WAV/MP3, <60s)")):
-    try:
-        if audio.content_type not in ["audio/wav", "audio/mpeg", "audio/mp3"]:
-            raise HTTPException(status_code=400, detail="Only WAV/MP3 audio supported")
-
-        # Save uploaded audio temporarily
-        filename = f"temp_audio_{uuid.uuid4().hex}.{audio.filename.split('.')[-1]}"
-        audio_path = os.path.join(UPLOAD_AUDIO_DIR, filename)
-        with open(audio_path, "wb") as buffer:
-            shutil.copyfileobj(audio.file, buffer)
-
-        # Transcribe audio to text + detect language
-        with open(audio_path, "rb") as f:
-            audio_content = f.read()
-        transcript, detected_lang = transcribe_audio(audio_content)
-
-        if "failed" in transcript.lower():
-            raise HTTPException(status_code=400, detail="Audio transcription failed. Please try clearer speech.")
-
-        print(f"🔍 Transcribed: '{transcript}' (Detected lang: {detected_lang})")
-
-        # Get Gemini response in detected language
-        response = get_general_ai_response(transcript)  # Use general endpoint logic
-
-        # Generate voice response in detected language with SSML for better pronunciation
-        voice_filename = generate_voice(
-            response,
-            lang=detected_lang.split('-')[0],
-            use_ssml=True,
-            custom_rate=0.95
+        return get_gemini_response(
+            prompt=prompt,
+            language=language,
+            context=context,
         )
 
-        # Save to DB
-        chat_data = {
-            "type": "voice_chat",
-            "transcript": transcript,
-            "detected_lang": detected_lang,
-            "response": response,
-            "voice_file": voice_filename,
-            "timestamp": datetime.datetime.now()
-        }
-        await save_chat_to_db(chat_data)
+    except TypeError:
 
-        # Clean up temp audio
-        os.remove(audio_path)
+        # Compatibility with older get_gemini_response()
+        try:
+
+            return get_gemini_response(
+                prompt
+            )
+
+        except Exception as e:
+
+            print(
+                f"[CHATBOT AI ERROR] {e}"
+            )
+
+            return (
+                "Sorry, I could not process your question "
+                "right now."
+            )
+
+    except Exception as e:
+
+        print(
+            f"[CHATBOT AI ERROR] {e}"
+        )
+
+        return (
+            "Sorry, I could not process your question "
+            "right now."
+        )
+
+
+# ============================================================
+# SAVE CHAT TO DATABASE
+# ============================================================
+
+async def save_chat_to_db(
+    chat_data: dict
+):
+
+    """
+    Save chat history if MongoDB is available.
+
+    MongoDB failure MUST NOT break the chatbot.
+    """
+
+    if db is None:
+
+        print(
+            "[CHATBOT] MongoDB not available. "
+            "Chat history will not be saved."
+        )
+
+        return False
+
+    try:
+
+        await db[
+            "chat_history"
+        ].insert_one(
+            chat_data
+        )
+
+        print(
+            "[CHATBOT] Chat saved to DB"
+        )
+
+        return True
+
+    except Exception as e:
+
+        print(
+            f"[CHATBOT DB WARNING] "
+            f"Could not save chat: {e}"
+        )
+
+        # IMPORTANT:
+        # Do NOT raise the error.
+        # Chat should continue working.
+
+        return False
+
+
+# ============================================================
+# TEXT CHAT
+# ============================================================
+
+@router.post("/chat")
+async def chat(
+    request: ChatRequest
+):
+
+    try:
+
+        # ----------------------------------------------------
+        # EXTRACT MESSAGE
+        # ----------------------------------------------------
+
+        message = getattr(
+            request,
+            "message",
+            None
+        )
+
+        if not message:
+
+            message = getattr(
+                request,
+                "prompt",
+                None
+            )
+
+        if not message:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Message cannot be empty."
+            )
+
+        message = str(
+            message
+        ).strip()
+
+        if not message:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Message cannot be empty."
+            )
+
+        # ----------------------------------------------------
+        # LANGUAGE
+        # ----------------------------------------------------
+
+        language = getattr(
+            request,
+            "language",
+            "en"
+        )
+
+        if not language:
+
+            language = "en"
+
+        # ----------------------------------------------------
+        # OPTIONAL CROP CONTEXT
+        # ----------------------------------------------------
+
+        crop = getattr(
+            request,
+            "crop",
+            None
+        )
+
+        disease = getattr(
+            request,
+            "disease",
+            None
+        )
+
+        risk_level = getattr(
+            request,
+            "risk_level",
+            None
+        )
+
+        weather_risk = getattr(
+            request,
+            "weather_risk",
+            None
+        )
+
+        context_parts = []
+
+        if crop:
+
+            context_parts.append(
+                f"Crop: {crop}"
+            )
+
+        if disease:
+
+            context_parts.append(
+                f"Detected disease or pest: {disease}"
+            )
+
+        if risk_level:
+
+            context_parts.append(
+                f"Current risk level: {risk_level}"
+            )
+
+        if weather_risk is not None:
+
+            context_parts.append(
+                f"Weather risk: {weather_risk}"
+            )
+
+        context = "\n".join(
+            context_parts
+        )
+
+        # ----------------------------------------------------
+        # GEMINI
+        # ----------------------------------------------------
+
+        response = get_general_ai_response(
+            prompt=message,
+            language=language,
+            context=context
+        )
+
+        # ----------------------------------------------------
+        # SAVE HISTORY
+        # ----------------------------------------------------
+
+        chat_data = {
+
+            "type": "text_chat",
+
+            "message": message,
+
+            "language": language,
+
+            "response": response,
+
+            "crop": crop,
+
+            "disease": disease,
+
+            "risk_level": risk_level,
+
+            "weather_risk": weather_risk,
+
+            "timestamp": datetime.datetime.now(
+                datetime.timezone.utc
+            ),
+        }
+
+        await save_chat_to_db(
+            chat_data
+        )
+
+        # ----------------------------------------------------
+        # RESPONSE
+        # ----------------------------------------------------
 
         return {
-            "transcript": transcript,
-            "detected_language": detected_lang,
-            "response_text": response,
-            "voice_url": f"/uploadvoices/{voice_filename}" if voice_filename else None,
-            "timestamp": str(datetime.datetime.now())
+
+            "success": True,
+
+            "message": message,
+
+            "response": response,
+
+            "language": language,
+
+            "timestamp": datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat(),
         }
+
+    except HTTPException:
+
+        raise
+
     except Exception as e:
-        print(f"Error in /voice_chat: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+        print(
+            "[CHAT ERROR]"
+        )
+
+        print(
+            traceback.format_exc()
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+
+# ============================================================
+# VOICE CHAT
+# ============================================================
+
+@router.post("/voice_chat")
+async def voice_chat(
+    file: UploadFile = File(...)
+):
+
+    audio_path = None
+
+    try:
+
+        # ----------------------------------------------------
+        # VALIDATE FILE
+        # ----------------------------------------------------
+
+        if not file:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Audio file is required."
+            )
+
+        # ----------------------------------------------------
+        # SAVE AUDIO
+        # ----------------------------------------------------
+
+        extension = os.path.splitext(
+            file.filename or ""
+        )[1]
+
+        if not extension:
+
+            extension = ".wav"
+
+        filename = (
+            f"{uuid.uuid4().hex}"
+            f"{extension}"
+        )
+
+        audio_path = os.path.join(
+            UPLOAD_AUDIO_DIR,
+            filename
+        )
+
+        with open(
+            audio_path,
+            "wb"
+        ) as buffer:
+
+            shutil.copyfileobj(
+                file.file,
+                buffer
+            )
+
+        print(
+            f"[VOICE] Audio saved: {audio_path}"
+        )
+
+        # ----------------------------------------------------
+        # TRANSCRIBE
+        # ----------------------------------------------------
+
+        detected_lang = "en-US"
+
+        try:
+
+            transcript = transcribe_audio(
+                audio_path,
+                detected_lang
+            )
+
+        except TypeError:
+
+            # Compatibility with older
+            # transcribe_audio(audio_path)
+
+            transcript = transcribe_audio(
+                audio_path
+            )
+
+        if not transcript:
+
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Could not understand the audio. "
+                    "Please speak clearly and try again."
+                )
+            )
+
+        print(
+            f"[VOICE] Transcribed: "
+            f"'{transcript}'"
+        )
+
+        # ----------------------------------------------------
+        # AI RESPONSE
+        # ----------------------------------------------------
+
+        response = get_general_ai_response(
+            prompt=transcript,
+            language="en"
+        )
+
+        # ----------------------------------------------------
+        # GENERATE VOICE RESPONSE
+        # ----------------------------------------------------
+
+        voice_filename = None
+
+        try:
+
+            voice_filename = generate_voice(
+                response,
+                lang="en",
+                use_ssml=True,
+                custom_rate=0.95
+            )
+
+        except Exception as e:
+
+            print(
+                f"[VOICE TTS WARNING] {e}"
+            )
+
+        # ----------------------------------------------------
+        # SAVE CHAT HISTORY
+        # ----------------------------------------------------
+
+        chat_data = {
+
+            "type": "voice_chat",
+
+            "transcript": transcript,
+
+            "detected_lang": detected_lang,
+
+            "response": response,
+
+            "voice_file": voice_filename,
+
+            "timestamp": datetime.datetime.now(
+                datetime.timezone.utc
+            ),
+        }
+
+        await save_chat_to_db(
+            chat_data
+        )
+
+        # ----------------------------------------------------
+        # CLEAN TEMP AUDIO
+        # ----------------------------------------------------
+
+        try:
+
+            if audio_path and os.path.exists(
+                audio_path
+            ):
+
+                os.remove(
+                    audio_path
+                )
+
+        except Exception as e:
+
+            print(
+                f"[VOICE CLEANUP WARNING] {e}"
+            )
+
+        # ----------------------------------------------------
+        # RESPONSE
+        # ----------------------------------------------------
+
+        return {
+
+            "success": True,
+
+            "transcript": transcript,
+
+            "detected_language": detected_lang,
+
+            "response_text": response,
+
+            "voice_url": (
+                f"/uploadvoices/{voice_filename}"
+                if voice_filename
+                else None
+            ),
+
+            "timestamp": datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat(),
+        }
+
+    except HTTPException:
+
+        raise
+
+    except Exception as e:
+
+        print(
+            "[VOICE CHAT ERROR]"
+        )
+
+        print(
+            traceback.format_exc()
+        )
+
+        # Cleanup
+        try:
+
+            if audio_path and os.path.exists(
+                audio_path
+            ):
+
+                os.remove(
+                    audio_path
+                )
+
+        except Exception:
+
+            pass
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )

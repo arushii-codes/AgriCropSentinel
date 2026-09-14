@@ -6,20 +6,36 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:http/http.dart' as http;
 
 /// ===============================================================
-/// AGRICROPSENTINEL CHAT SCREEN
+/// AGRICROPSENTINEL - AI CHAT SCREEN
 /// ===============================================================
 ///
-/// Features:
-/// - Farmer chatbot
-/// - FastAPI backend connection
-/// - Hindi / English friendly responses
-/// - Local Flutter TTS fallback
-/// - Backend voice support if voice_url is available
-/// - Clean Chrome-compatible implementation
+/// Backend:
+///   POST http://localhost:8000/chat
 ///
-/// NOTE:
-/// Image analysis should continue through your existing camera.dart
-/// because this file intentionally does NOT use file_picker.
+/// Request:
+///   {
+///     "prompt": "What are the symptoms of tomato late blight?"
+///   }
+///
+/// Response:
+///   {
+///     "success": true,
+///     "message": "...",
+///     "language": "en",
+///     "timestamp": "..."
+///   }
+///
+/// Features:
+/// - AI farmer chatbot
+/// - FastAPI integration
+/// - Hindi / English friendly
+/// - Local Flutter TTS
+/// - Backend voice URL support
+/// - Camera shortcut
+/// - Chat bubbles
+/// - Loading indicator
+/// - Error handling
+/// - Chrome compatible
 /// ===============================================================
 
 class ChatScreen extends StatefulWidget {
@@ -34,7 +50,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // BACKEND
   // =============================================================
 
-  static const String backendUrl = "http://localhost:8000";
+  static const String backendUrl = "https://jslkprxq-8000.inc1.devtunnels.ms";
 
   // =============================================================
   // CONTROLLERS
@@ -84,9 +100,11 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _messageController.dispose();
+
     _scrollController.dispose();
 
     _flutterTts.stop();
+
     _audioPlayer.dispose();
 
     super.dispose();
@@ -102,12 +120,16 @@ class _ChatScreenState extends State<ChatScreen> {
         text:
             "Namaste! 🌾\n\n"
             "Main AgriCropSentinel AI hoon. "
-            "Aap mujhse apni fasal, bimari, weather risk, "
-            "treatment ya farming ke baare mein pooch sakte hain.\n\n"
-            "Aap example ke liye pooch sakte hain:\n"
-            "• Tomato leaves have brown spots\n"
-            "• What should I do for Apple Black Rot?\n"
-            "• How can I protect my crop from disease?",
+            "Aap mujhse apni fasal, bimari, pests, "
+            "weather risk, treatment aur farming ke "
+            "baare mein pooch sakte hain.\n\n"
+            "Aap mujhse pooch sakte hain:\n\n"
+            "🌱 Tomato leaves have brown spots\n"
+            "🍎 What should I do for Apple Black Rot?\n"
+            "🌦️ Is the weather risky for my crop?\n"
+            "🐛 How can I control pests?\n"
+            "💊 What treatment should I use?\n"
+            "🌾 How can I protect my crop from disease?",
         isUser: false,
       ),
     );
@@ -235,14 +257,14 @@ class _ChatScreenState extends State<ChatScreen> {
       await stopSpeaking();
 
       // ---------------------------------------------------------
-      // Try backend-generated audio first
+      // BACKEND GENERATED VOICE
       // ---------------------------------------------------------
 
       if (voiceUrl != null &&
           voiceUrl.trim().isNotEmpty) {
         String finalUrl = voiceUrl.trim();
 
-        // Backend may return:
+        // Backend can return:
         // /uploadvoices/example.mp3
 
         if (finalUrl.startsWith("/")) {
@@ -271,14 +293,13 @@ class _ChatScreenState extends State<ChatScreen> {
           );
 
           debugPrint(
-            "Falling back to Flutter TTS.",
+            "Using Flutter TTS fallback.",
           );
         }
       }
 
       // ---------------------------------------------------------
-      // Backend voice unavailable
-      // Use local Flutter TTS
+      // LOCAL TTS FALLBACK
       // ---------------------------------------------------------
 
       await speakText(fallbackText);
@@ -294,19 +315,22 @@ class _ChatScreenState extends State<ChatScreen> {
   // =============================================================
 
   Future<void> sendMessage() async {
-    final text =
-        _messageController.text.trim();
+    final text = _messageController.text.trim();
 
+    // Don't send empty messages
     if (text.isEmpty) {
       return;
     }
 
+    // Don't allow multiple requests
     if (_isLoading) {
       return;
     }
 
+    // Clear input
     _messageController.clear();
 
+    // Add user's message
     setState(() {
       _messages.add(
         ChatMessage(
@@ -321,20 +345,56 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     try {
-      final response = await http.post(
-        Uri.parse(
-          "$backendUrl/chat/general",
-        ),
-        headers: {
-          "Content-Type":
-              "application/json",
-          "Accept":
-              "application/json",
-        },
-        body: jsonEncode({
-          "prompt": text,
-        }),
+      // =========================================================
+      // CORRECT BACKEND ENDPOINT
+      // =========================================================
+
+      final uri = Uri.parse(
+        "$backendUrl/chat",
       );
+
+      debugPrint(
+        "====================================",
+      );
+
+      debugPrint(
+        "CHAT REQUEST",
+      );
+
+      debugPrint(
+        "URL: $uri",
+      );
+
+      debugPrint(
+        "Prompt: $text",
+      );
+
+      debugPrint(
+        "====================================",
+      );
+
+      // =========================================================
+      // API REQUEST
+      // =========================================================
+
+      final response = await http
+          .post(
+            uri,
+            headers: {
+              "Content-Type": "application/json",
+              "Accept": "application/json",
+            },
+            body: jsonEncode({
+              "prompt": text,
+            }),
+          )
+          .timeout(
+            const Duration(seconds: 30),
+          );
+
+      // =========================================================
+      // DEBUG RESPONSE
+      // =========================================================
 
       debugPrint(
         "Chat status: ${response.statusCode}",
@@ -344,21 +404,44 @@ class _ChatScreenState extends State<ChatScreen> {
         "Chat response: ${response.body}",
       );
 
+      // =========================================================
+      // ERROR RESPONSE
+      // =========================================================
+
       if (response.statusCode != 200) {
         throw Exception(
           "Chat API error: "
-          "${response.statusCode}",
+          "${response.statusCode}\n"
+          "${response.body}",
         );
       }
 
-      final decoded =
+      // =========================================================
+      // PARSE JSON
+      // =========================================================
+
+      final dynamic decoded =
           jsonDecode(response.body);
 
-      final reply =
+      // =========================================================
+      // EXTRACT AI RESPONSE
+      // =========================================================
+
+      final String reply =
           _extractResponse(decoded);
 
-      final voiceUrl =
+      // =========================================================
+      // EXTRACT VOICE URL
+      // =========================================================
+
+      final String? voiceUrl =
           _extractVoiceUrl(decoded);
+
+      // =========================================================
+      // UPDATE UI
+      // =========================================================
+
+      if (!mounted) return;
 
       setState(() {
         _messages.add(
@@ -374,14 +457,36 @@ class _ChatScreenState extends State<ChatScreen> {
 
       _scrollToBottom();
 
+      // =========================================================
+      // READ RESPONSE ALOUD
+      // =========================================================
+
       await playVoice(
         voiceUrl: voiceUrl,
         fallbackText: reply,
       );
     } catch (e) {
+      // =========================================================
+      // ERROR HANDLING
+      // =========================================================
+
       debugPrint(
-        "Chat request failed: $e",
+        "====================================",
       );
+
+      debugPrint(
+        "CHAT ERROR",
+      );
+
+      debugPrint(
+        "$e",
+      );
+
+      debugPrint(
+        "====================================",
+      );
+
+      if (!mounted) return;
 
       setState(() {
         _messages.add(
@@ -389,7 +494,8 @@ class _ChatScreenState extends State<ChatScreen> {
             text:
                 "Sorry, I could not connect to "
                 "the AgriCropSentinel AI service.\n\n"
-                "Please make sure the backend is running.",
+                "Please make sure the backend is running "
+                "on port 8000.",
             isUser: false,
           ),
         );
@@ -406,17 +512,31 @@ class _ChatScreenState extends State<ChatScreen> {
   // =============================================================
 
   String _extractResponse(dynamic data) {
-    // Backend returned plain string
+    // -----------------------------------------------------------
+    // Backend returned a plain String
+    // -----------------------------------------------------------
+
     if (data is String) {
-      return data;
+      final result = data.trim();
+
+      if (result.isNotEmpty) {
+        return result;
+      }
     }
 
+    // -----------------------------------------------------------
     // Backend returned JSON object
+    // -----------------------------------------------------------
+
     if (data is Map) {
+      // Your current backend returns:
+      //
+      // "message": "..."
+
       final possibleKeys = [
+        "message",
         "response",
         "reply",
-        "message",
         "answer",
         "text",
         "response_text",
@@ -424,14 +544,22 @@ class _ChatScreenState extends State<ChatScreen> {
       ];
 
       for (final key in possibleKeys) {
-        final value = data[key];
+        final dynamic value = data[key];
 
-        if (value != null &&
-            value.toString().trim().isNotEmpty) {
-          return value.toString();
+        if (value != null) {
+          final String result =
+              value.toString().trim();
+
+          if (result.isNotEmpty) {
+            return result;
+          }
         }
       }
     }
+
+    // -----------------------------------------------------------
+    // Unknown response
+    // -----------------------------------------------------------
 
     return "I received a response, but could not understand its format.";
   }
@@ -442,11 +570,16 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String? _extractVoiceUrl(dynamic data) {
     if (data is Map) {
-      final value = data["voice_url"];
+      final dynamic value =
+          data["voice_url"];
 
-      if (value != null &&
-          value.toString().trim().isNotEmpty) {
-        return value.toString();
+      if (value != null) {
+        final String result =
+            value.toString().trim();
+
+        if (result.isNotEmpty) {
+          return result;
+        }
       }
     }
 
@@ -458,20 +591,21 @@ class _ChatScreenState extends State<ChatScreen> {
   // =============================================================
 
   void _scrollToBottom() {
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) {
-        return;
-      }
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) {
+        if (!_scrollController.hasClients) {
+          return;
+        }
 
-      _scrollController.animateTo(
-        _scrollController.position
-            .maxScrollExtent,
-        duration:
-            const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    });
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(
+            milliseconds: 300,
+          ),
+          curve: Curves.easeOut,
+        );
+      },
+    );
   }
 
   // =============================================================
@@ -498,45 +632,53 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
 
+      // =========================================================
+      // BODY
+      // =========================================================
+
       body: Column(
         children: [
-          // =====================================================
+          // =======================================================
           // CHAT MESSAGES
-          // =====================================================
+          // =======================================================
 
           Expanded(
-            child: ListView.builder(
-              controller:
-                  _scrollController,
-              padding:
-                  const EdgeInsets.all(16),
-              itemCount:
-                  _messages.length,
-              itemBuilder:
-                  (context, index) {
-                return _buildMessageBubble(
-                  _messages[index],
-                );
-              },
-            ),
+            child: _messages.isEmpty
+                ? const Center(
+                    child: Text(
+                      "Start a conversation 🌱",
+                    ),
+                  )
+                : ListView.builder(
+                    controller:
+                        _scrollController,
+                    padding:
+                        const EdgeInsets.all(16),
+                    itemCount:
+                        _messages.length,
+                    itemBuilder:
+                        (context, index) {
+                      return _buildMessageBubble(
+                        _messages[index],
+                      );
+                    },
+                  ),
           ),
 
-          // =====================================================
-          // LOADING
-          // =====================================================
+          // =======================================================
+          // LOADING INDICATOR
+          // =======================================================
 
           if (_isLoading)
             const Padding(
-              padding:
-                  EdgeInsets.fromLTRB(
+              padding: EdgeInsets.fromLTRB(
                 16,
                 4,
                 16,
                 8,
               ),
               child: Align(
-                alignment:
-                    Alignment.centerLeft,
+                alignment: Alignment.centerLeft,
                 child: Row(
                   children: [
                     SizedBox(
@@ -547,7 +689,9 @@ class _ChatScreenState extends State<ChatScreen> {
                         strokeWidth: 2,
                       ),
                     ),
-                    SizedBox(width: 10),
+                    SizedBox(
+                      width: 10,
+                    ),
                     Text(
                       "AI is thinking...",
                     ),
@@ -556,14 +700,13 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
 
-          // =====================================================
+          // =======================================================
           // MESSAGE INPUT
-          // =====================================================
+          // =======================================================
 
           SafeArea(
             child: Container(
-              padding:
-                  const EdgeInsets.fromLTRB(
+              padding: const EdgeInsets.fromLTRB(
                 10,
                 8,
                 10,
@@ -573,9 +716,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 crossAxisAlignment:
                     CrossAxisAlignment.end,
                 children: [
-                  // ------------------------------------------------
-                  // CAMERA
-                  // ------------------------------------------------
+                  // =================================================
+                  // CAMERA BUTTON
+                  // =================================================
 
                   IconButton(
                     tooltip:
@@ -587,36 +730,70 @@ class _ChatScreenState extends State<ChatScreen> {
                         _showImageAnalysisMessage,
                   ),
 
-                  // ------------------------------------------------
-                  // TEXT FIELD
-                  // ------------------------------------------------
+                  // =================================================
+                  // TEXT INPUT
+                  // =================================================
 
                   Expanded(
                     child: TextField(
                       controller:
                           _messageController,
+
                       minLines: 1,
+
                       maxLines: 4,
+
                       textInputAction:
                           TextInputAction.send,
+
                       onSubmitted: (_) {
                         sendMessage();
                       },
+
                       decoration:
                           InputDecoration(
                         hintText:
                             "Ask about your crop...",
+
                         contentPadding:
                             const EdgeInsets
                                 .symmetric(
                           horizontal: 18,
                           vertical: 12,
                         ),
+
                         border:
                             OutlineInputBorder(
                           borderRadius:
-                              BorderRadius
-                                  .circular(24),
+                              BorderRadius.circular(
+                            24,
+                          ),
+                        ),
+
+                        enabledBorder:
+                            OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(
+                            24,
+                          ),
+                        ),
+
+                        focusedBorder:
+                            OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(
+                            24,
+                          ),
+                          borderSide:
+                              BorderSide(
+                            color:
+                                Theme.of(
+                              context,
+                            )
+                                    .colorScheme
+                                    .primary,
+                            width: 2,
+                          ),
                         ),
                       ),
                     ),
@@ -626,9 +803,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     width: 6,
                   ),
 
-                  // ------------------------------------------------
-                  // SEND
-                  // ------------------------------------------------
+                  // =================================================
+                  // SEND BUTTON
+                  // =================================================
 
                   CircleAvatar(
                     child: IconButton(
@@ -652,19 +829,11 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // =============================================================
-  // IMAGE BUTTON MESSAGE
-  // =============================================================
-  //
-  // We don't use file_picker here because your current target
-  // is Chrome and FilePicker.platform caused the compilation error.
-  //
-  // Your existing camera.dart should handle image selection and
-  // /vision/analyze.
+  // IMAGE ANALYSIS BUTTON
   // =============================================================
 
   void _showImageAnalysisMessage() {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
           "Use the Camera / Crop Analysis screen "
@@ -684,39 +853,58 @@ class _ChatScreenState extends State<ChatScreen> {
     final bool isUser =
         message.isUser;
 
+    final Color userColor =
+        Theme.of(context)
+            .colorScheme
+            .primaryContainer;
+
+    final Color botColor =
+        Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest;
+
     return Align(
-      alignment:
-          isUser
-              ? Alignment.centerRight
-              : Alignment.centerLeft,
+      alignment: isUser
+          ? Alignment.centerRight
+          : Alignment.centerLeft,
+
       child: Container(
         constraints:
             const BoxConstraints(
           maxWidth: 700,
         ),
+
         margin:
             const EdgeInsets.only(
           bottom: 12,
         ),
+
         padding:
-            const EdgeInsets.all(14),
+            const EdgeInsets.all(
+          14,
+        ),
+
         decoration:
             BoxDecoration(
           color:
               isUser
-                  ? Theme.of(context)
-                      .colorScheme
-                      .primaryContainer
-                  : Theme.of(context)
-                      .colorScheme
-                      .surfaceContainerHighest,
+                  ? userColor
+                  : botColor,
+
           borderRadius:
-              BorderRadius.circular(18),
+              BorderRadius.circular(
+            18,
+          ),
         ),
+
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
           children: [
+            // =====================================================
+            // MESSAGE TEXT
+            // =====================================================
+
             Text(
               message.text,
               style:
@@ -726,9 +914,9 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
 
-            // ----------------------------------------------------
+            // =====================================================
             // VOICE CONTROL
-            // ----------------------------------------------------
+            // =====================================================
 
             if (!isUser)
               Padding(
@@ -743,13 +931,13 @@ class _ChatScreenState extends State<ChatScreen> {
                     IconButton(
                       tooltip:
                           "Read aloud",
+
                       icon: Icon(
                         _isSpeaking
-                            ? Icons
-                                .stop_circle
-                            : Icons
-                                .volume_up,
+                            ? Icons.stop_circle
+                            : Icons.volume_up,
                       ),
+
                       onPressed: () {
                         if (_isSpeaking) {
                           stopSpeaking();

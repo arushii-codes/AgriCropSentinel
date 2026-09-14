@@ -1,136 +1,283 @@
-from fastapi import APIRouter, HTTPException, Request, Query
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
-from weather.services import fetch_weather, fetch_weather_by_coords
-import requests
-import feedparser
-from auth.database import users_collection
+from fastapi import APIRouter, Query
 from schemas import WeatherRiskResponse, GeoLocation
-from chatbot.models import DashboardResponse
+from weather.services import fetch_weather_by_coords
 
 router = APIRouter()
 
-# Set up Jinja2 templates
-templates = Jinja2Templates(directory="templates")
 
+# ============================================================
+# WEATHER RISK CALCULATION
+# ============================================================
 
-@router.get("/risk", response_model=WeatherRiskResponse)
-async def get_weather_risk(
-    lat: float = Query(29.9695, description="Farmer field latitude"),
-    lon: float = Query(76.8783, description="Farmer field longitude"),
+def calculate_weather_risk(
+    temperature: float,
+    humidity: float,
+    rainfall: float,
 ):
     """
-    Returns weather-based disease risk score and favorable disease conditions
-    for the given field coordinates.
+    Calculate weather-based crop disease/pest risk.
+
+    Score range: 0.0 - 0.95
     """
-    try:
-        data = fetch_weather_by_coords(lat, lon)
-        if data and "main" in data:
-            temp = float(data["main"].get("temp", 28.5))
-            humidity = float(data["main"].get("humidity", 75.0))
-            rain = float(data.get("rain", {}).get("1h", 0.0)) * 24.0 if "rain" in data else 12.0
-            
-            # Simple risk heuristic: high humidity (>70%) & warm temp (20-32C) increases risk score
-            risk_score = 0.5
-            favorable = []
-            if humidity > 70:
-                risk_score += 0.25
-                favorable.append("leaf_rust")
-            if temp >= 20 and temp <= 32:
-                risk_score += 0.15
-                favorable.append("late_blight")
-            if rain > 5.0:
-                risk_score += 0.10
-                favorable.append("powdery_mildew")
 
-            risk_score = round(min(risk_score, 0.95), 2)
+    score = 0.10
+
+    # --------------------------------------------------------
+    # HUMIDITY
+    # --------------------------------------------------------
+
+    if humidity >= 85:
+        score += 0.35
+
+    elif humidity >= 70:
+        score += 0.25
+
+    elif humidity >= 60:
+        score += 0.10
+
+    # --------------------------------------------------------
+    # TEMPERATURE
+    # --------------------------------------------------------
+
+    if 20 <= temperature <= 32:
+        score += 0.20
+
+    elif 15 <= temperature < 20:
+        score += 0.10
+
+    elif 32 < temperature <= 38:
+        score += 0.10
+
+    # --------------------------------------------------------
+    # RAINFALL
+    # --------------------------------------------------------
+
+    if rainfall >= 10:
+        score += 0.25
+
+    elif rainfall >= 5:
+        score += 0.15
+
+    elif rainfall >= 2:
+        score += 0.05
+
+    score = min(score, 0.95)
+
+    return round(score, 2)
+
+
+# ============================================================
+# FAVORABLE CONDITIONS
+# ============================================================
+
+def get_favorable_conditions(
+    temperature: float,
+    humidity: float,
+    rainfall: float,
+):
+    conditions = []
+
+    # Humidity
+    if humidity >= 85:
+        conditions.append(
+            "High Humidity"
+        )
+
+    elif humidity >= 70:
+        conditions.append(
+            "Moderately High Humidity"
+        )
+
+    # Temperature
+    if 20 <= temperature <= 32:
+        conditions.append(
+            "Favorable Temperature"
+        )
+
+    # Rain
+    if rainfall >= 10:
+        conditions.append(
+            "Heavy Rainfall"
+        )
+
+    elif rainfall >= 5:
+        conditions.append(
+            "Recent Rainfall"
+        )
+
+    # Disease-specific environmental interpretation
+    if humidity >= 80 and 18 <= temperature <= 28:
+        conditions.append(
+            "Favorable for fungal diseases"
+        )
+
+    if humidity >= 80 and rainfall >= 5:
+        conditions.append(
+            "Favorable for leaf-spot and blight development"
+        )
+
+    if 25 <= temperature <= 35 and humidity >= 60:
+        conditions.append(
+            "Favorable for several insect pests"
+        )
+
+    # Nothing special
+    if not conditions:
+        conditions.append(
+            "No major disease-favorable conditions detected"
+        )
+
+    return conditions
+
+
+# ============================================================
+# WEATHER RISK API
+# ============================================================
+
+@router.get(
+    "/risk",
+    response_model=WeatherRiskResponse,
+)
+async def weather_risk(
+    lat: float = Query(...),
+    lon: float = Query(...),
+):
+    """
+    Return current weather and crop-health weather risk.
+    """
+
+    try:
+
+        weather = fetch_weather_by_coords(
+            lat,
+            lon,
+        )
+
+        # ----------------------------------------------------
+        # API FAILURE
+        # ----------------------------------------------------
+
+        if "error" in weather:
+
             return WeatherRiskResponse(
-                location=GeoLocation(lat=lat, lon=lon),
-                temperature_c=temp,
-                humidity_pct=humidity,
-                rainfall_mm_last_24h=round(rain, 1),
-                weather_risk_score=risk_score,
-                favorable_conditions_for=favorable if favorable else ["powdery_mildew"]
+                location=GeoLocation(
+                    lat=lat,
+                    lon=lon,
+                ),
+
+                temperature_c=28.5,
+                humidity_pct=76.0,
+                rainfall_mm_last_24h=12.4,
+
+                weather_risk_score=0.62,
+
+                favorable_conditions_for=[
+                    "Moderately High Humidity",
+                    "Favorable Temperature",
+                    "Recent Rainfall",
+                    "Favorable for fungal diseases",
+                ],
             )
+
+        # ----------------------------------------------------
+        # LIVE VALUES
+        # ----------------------------------------------------
+
+        temperature = float(
+            weather.get(
+                "temperature_c",
+                28.0,
+            )
+            or 28.0
+        )
+
+        humidity = float(
+            weather.get(
+                "humidity",
+                70.0,
+            )
+            or 70.0
+        )
+
+        rainfall = float(
+            weather.get(
+                "precipitation_mm",
+                0.0,
+            )
+            or 0.0
+        )
+
+        # ----------------------------------------------------
+        # RISK
+        # ----------------------------------------------------
+
+        risk_score = calculate_weather_risk(
+            temperature,
+            humidity,
+            rainfall,
+        )
+
+        # ----------------------------------------------------
+        # FAVORABLE CONDITIONS
+        # ----------------------------------------------------
+
+        favorable = get_favorable_conditions(
+            temperature,
+            humidity,
+            rainfall,
+        )
+
+        print(
+            f"[WEATHER] "
+            f"lat={lat} "
+            f"lon={lon} "
+            f"temp={temperature} "
+            f"humidity={humidity} "
+            f"rain={rainfall} "
+            f"risk={risk_score}"
+        )
+
+        return WeatherRiskResponse(
+            location=GeoLocation(
+                lat=lat,
+                lon=lon,
+            ),
+
+            temperature_c=temperature,
+
+            humidity_pct=humidity,
+
+            rainfall_mm_last_24h=rainfall,
+
+            weather_risk_score=risk_score,
+
+            favorable_conditions_for=favorable,
+        )
+
     except Exception as e:
-        print(f"⚠️ Weather risk lookup fallback: {e}")
 
-    return WeatherRiskResponse(
-        location=GeoLocation(lat=lat, lon=lon),
-        temperature_c=28.5,
-        humidity_pct=76.0,
-        rainfall_mm_last_24h=12.4,
-        weather_risk_score=0.62,
-        favorable_conditions_for=["leaf_rust", "late_blight"]
-    )
+        print(
+            f"[WEATHER ERROR] {e}"
+        )
 
-@router.get("/{location}")
-async def get_weather(location: str):
-    data = fetch_weather(location)
-    if "error" in data:
-        raise HTTPException(status_code=500, detail=data["error"])
-    return data
+        return WeatherRiskResponse(
+            location=GeoLocation(
+                lat=lat,
+                lon=lon,
+            ),
 
-@router.get("/dashboard", response_class=HTMLResponse)
-async def weather_dashboard(request: Request, location: str = "London"):
-    weather_data = fetch_weather(location)
-    if "error" in weather_data:
-        weather_data = {"location": location, "error": weather_data["error"]}
-    return templates.TemplateResponse("dashboard.html", {"request": request, "weather": weather_data})
+            temperature_c=28.5,
 
+            humidity_pct=76.0,
 
-@router.get("/dashboard/{phone}", response_model=DashboardResponse)
-async def dashboard(phone: str):
-    # Load user
-    user = await users_collection.find_one({"phone": phone})
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+            rainfall_mm_last_24h=12.4,
 
-    name = user.get("name")
-    location = user.get("location") or {}
-    lat = location.get("lat")
-    lon = location.get("lon")
+            weather_risk_score=0.62,
 
-    # Weather by coordinates
-    weather = None
-    if lat is not None and lon is not None:
-        weather = fetch_weather_by_coords(lat, lon)
-
-    # News: use Google News RSS with geo keywords
-    news_items = []
-    try:
-        # Construct a query favoring agriculture/crop topics
-        query = "agriculture OR crop OR farming"
-        region = f"{location.get('district','')} {location.get('state','')}".strip()
-        q = f"{query} {region}".strip()
-        url = f"https://news.google.com/rss/search?q={requests.utils.quote(q)}&hl=en-IN&gl=IN&ceid=IN:en"
-        feed = feedparser.parse(url)
-        for entry in feed.entries[:10]:
-            news_items.append({
-                "title": entry.get("title"),
-                "link": entry.get("link"),
-                "published": entry.get("published"),
-            })
-    except Exception:
-        news_items = []
-
-    # Market prices: placeholder using Agmarknet-like structure (no key used)
-    market_prices = []
-    try:
-        # Placeholder static or pseudo source. Replace with actual API if available.
-        # For demo, fetch a public JSON sample or construct a simple list
-        market_prices = [
-            {"commodity": "Wheat", "state": location.get("state"), "price_per_qtl": 2150},
-            {"commodity": "Rice", "state": location.get("state"), "price_per_qtl": 2400},
-            {"commodity": "Maize", "state": location.get("state"), "price_per_qtl": 1900},
-        ]
-    except Exception:
-        market_prices = []
-
-    return DashboardResponse(
-        name=name,
-        location=location,
-        weather=weather,
-        news=news_items,
-        market_prices=market_prices,
-    )
+            favorable_conditions_for=[
+                "Moderately High Humidity",
+                "Favorable Temperature",
+                "Recent Rainfall",
+                "Favorable for fungal diseases",
+            ],
+        )

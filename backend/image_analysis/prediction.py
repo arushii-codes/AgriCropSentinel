@@ -1,60 +1,65 @@
+import os
 import numpy as np
-import json
 import tensorflow as tf
 from PIL import Image
 
 
 # ============================================================
-# GLOBAL SETUP
+# CONFIGURATION
 # ============================================================
 
 IMG_SIZE = (224, 224)
+
+MODEL_PATH = os.path.join(
+    os.path.dirname(__file__),
+    "plant_disease_recog_model_pwp (2).keras"
+)
 
 
 # ============================================================
 # 39 MODEL LABELS
 # ============================================================
 
-label = [
-    'Apple__Apple_scab',
-    'Apple_Black_rot',
-    'Apple_Cedar_apple_rust',
-    'Apple__healthy',
-    'Background_without_leaves',
-    'Blueberry__healthy',
-    'Cherry_Powdery_mildew',
-    'Cherry__healthy',
-    'Corn__Cercospora_leaf_spot Gray_leaf_spot',
-    'Corn_Common_rust',
-    'Corn_Northern_Leaf_Blight',
-    'Corn__healthy',
-    'Grape__Black_rot',
-    'Grape_Esca(Black_Measles)',
-    'Grape__Leaf_blight(Isariopsis_Leaf_Spot)',
-    'Grape___healthy',
-    'Orange__Haunglongbing(Citrus_greening)',
-    'Peach__Bacterial_spot',
-    'Peach__healthy',
-    'Pepper,bell_Bacterial_spot',
-    'Pepper,_bell__healthy',
-    'Potato__Early_blight',
-    'Potato_Late_blight',
-    'Potato__healthy',
-    'Raspberry__healthy',
-    'Soybean_healthy',
-    'Squash__Powdery_mildew',
-    'Strawberry__Leaf_scorch',
-    'Strawberry__healthy',
-    'Tomato__Bacterial_spot',
-    'Tomato_Early_blight',
-    'Tomato_Late_blight',
-    'Tomato__Leaf_Mold',
-    'Tomato__Septoria_leaf_spot',
-    'Tomato_Spider_mites Two-spotted_spider_mite',
-    'Tomato__Target_Spot',
-    'Tomato__Tomato_Yellow_Leaf_Curl_Virus',
-    'Tomato_Tomato_mosaic_virus',
-    'Tomato__healthy'
+LABELS = [
+    "Apple__Apple_scab",
+    "Apple_Black_rot",
+    "Apple_Cedar_apple_rust",
+    "Apple__healthy",
+    "Background_without_leaves",
+    "Blueberry__healthy",
+    "Cherry_Powdery_mildew",
+    "Cherry__healthy",
+    "Corn__Cercospora_leaf_spot Gray_leaf_spot",
+    "Corn_Common_rust",
+    "Corn_Northern_Leaf_Blight",
+    "Corn__healthy",
+    "Grape__Black_rot",
+    "Grape_Esca(Black_Measles)",
+    "Grape__Leaf_blight(Isariopsis_Leaf_Spot)",
+    "Grape___healthy",
+    "Orange__Haunglongbing(Citrus_greening)",
+    "Peach__Bacterial_spot",
+    "Peach__healthy",
+    "Pepper,bell_Bacterial_spot",
+    "Pepper,_bell__healthy",
+    "Potato__Early_blight",
+    "Potato_Late_blight",
+    "Potato__healthy",
+    "Raspberry__healthy",
+    "Soybean_healthy",
+    "Squash__Powdery_mildew",
+    "Strawberry__Leaf_scorch",
+    "Strawberry__healthy",
+    "Tomato__Bacterial_spot",
+    "Tomato_Early_blight",
+    "Tomato_Late_blight",
+    "Tomato__Leaf_Mold",
+    "Tomato__Septoria_leaf_spot",
+    "Tomato_Spider_mites Two-spotted_spider_mite",
+    "Tomato__Target_Spot",
+    "Tomato__Tomato_Yellow_Leaf_Curl_Virus",
+    "Tomato_Tomato_mosaic_virus",
+    "Tomato__healthy",
 ]
 
 
@@ -62,267 +67,158 @@ label = [
 # DISEASE INFORMATION
 # ============================================================
 
-data = {
+DISEASE_INFO = {
 
-    'Apple__Apple_scab': {
-        'cause': 'Caused by the fungus Venturia inaequalis, which overwinters in infected leaves and spreads via spores in wet spring conditions.',
-        'cure': 'Apply fungicides (e.g., captan) during bud break; rake and destroy fallen leaves; choose resistant varieties like Liberty.'
+    "Tomato_Late_blight": {
+        "cause": "Caused by Phytophthora infestans and spreads rapidly during cool, moist conditions.",
+        "cure": "Use appropriate fungicides; remove infected plant material; improve ventilation.",
     },
 
-    'Apple_Black_rot': {
-        'cause': 'Caused by the fungus Diplodia seriata (syn. Botryosphaeria obtusa), entering through wounds and thriving in warm, humid conditions.',
-        'cure': 'Sanitation: Remove infected fruit and cankers; apply copper-based fungicides early season; prune for air circulation.'
+    "Tomato_Early_blight": {
+        "cause": "Caused by Alternaria solani and commonly spreads through soil splash in humid weather.",
+        "cure": "Use appropriate fungicides; stake plants; mulch heavily.",
     },
 
-    'Apple_Cedar_apple_rust': {
-        'cause': 'Caused by the fungus Gymnosporangium juniperi-virginianae, requiring alternating hosts (apple and cedar/juniper) for its life cycle.',
-        'cure': 'Remove nearby cedars/juniper galls; apply myclobutanil fungicide at bud break; plant resistant apples like Enterprise.'
+    "Tomato__Bacterial_spot": {
+        "cause": "Caused by Xanthomonas species, commonly spreading during warm, wet conditions.",
+        "cure": "Use appropriate copper-based treatments; rotate crops; use disease-free seeds.",
     },
 
-    'Apple__healthy': {
-        'cause': 'No disease detected; healthy leaves indicate proper care and resistance.',
-        'cure': 'Maintain with balanced fertilizer, regular watering, and pruning; monitor for early signs of issues.'
+    "Tomato__Leaf_Mold": {
+        "cause": "Caused by Passalora fulva and associated with high humidity.",
+        "cure": "Improve ventilation; reduce humidity; use resistant varieties.",
     },
 
-    'Background_without_leaves': {
-        'cause': 'Not a disease; this class represents images without plant leaves.',
-        'cure': 'Upload a clear image of plant leaves for analysis; ensure good lighting and focus on foliage.'
+    "Tomato__Septoria_leaf_spot": {
+        "cause": "Caused by Septoria lycopersici and spreads during wet weather.",
+        "cure": "Use appropriate fungicides; rotate crops; remove affected lower leaves.",
     },
 
-    'Blueberry__healthy': {
-        'cause': 'No disease detected.',
-        'cure': 'Continue good practices: acidic soil (pH 4.5-5.5), mulch, and net against birds.'
+    "Tomato_Spider_mites Two-spotted_spider_mite": {
+        "cause": "Caused by Tetranychus urticae mites, which thrive in hot, dry conditions.",
+        "cure": "Use insecticidal soap or appropriate miticides; increase humidity; encourage natural predators.",
     },
 
-    'Cherry_Powdery_mildew': {
-        'cause': 'Caused by the fungus Podosphaera clandestina, favoring cool, dry conditions on young leaves.',
-        'cure': 'Apply sulfur-based fungicides; improve air flow by pruning; water at base to keep foliage dry.'
+    "Tomato__Target_Spot": {
+        "cause": "Caused by Corynespora cassiicola and favored by warm, humid conditions.",
+        "cure": "Use appropriate fungicides; sanitize growing areas; avoid overhead irrigation.",
     },
 
-    'Cherry__healthy': {
-        'cause': 'No disease detected.',
-        'cure': 'Prune annually for shape; fertilize in spring; ensure full sun and well-drained soil.'
+    "Tomato__Tomato_Yellow_Leaf_Curl_Virus": {
+        "cause": "Transmitted by whiteflies (Bemisia tabaci).",
+        "cure": "Control whiteflies; use reflective mulch; remove infected plants.",
     },
 
-    'Corn__Cercospora_leaf_spot Gray_leaf_spot': {
-        'cause': 'Caused by the fungus Cercospora zeae-maydis, spreading in warm, humid weather via spores on debris.',
-        'cure': 'Rotate crops; apply fungicides like azoxystrobin; remove infected residue post-harvest.'
+    "Tomato_Tomato_mosaic_virus": {
+        "cause": "Caused by Tobacco mosaic virus and can spread through handling and contaminated tools.",
+        "cure": "Remove infected plants; sanitize tools; use resistant varieties.",
     },
 
-    'Corn_Common_rust': {
-        'cause': 'Caused by the fungus Puccinia sorghi, with spores overwintering on alternate hosts like oxalis.',
-        'cure': 'Plant resistant hybrids; apply triazoles early; destroy volunteer corn.'
+    "Tomato__healthy": {
+        "cause": "No disease detected.",
+        "cure": "Provide full sun, even watering and adequate plant support.",
     },
 
-    'Corn_Northern_Leaf_Blight': {
-        'cause': 'Caused by the fungus Exserohilum turcicum, thriving in moderate temperatures and high humidity.',
-        'cure': 'Use resistant varieties; apply propiconazole at tasseling; rotate with non-host crops.'
+    "Potato__Early_blight": {
+        "cause": "Caused by the fungus Alternaria solani.",
+        "cure": "Apply appropriate fungicides; rotate crops; maintain plant hygiene.",
     },
 
-    'Corn__healthy': {
-        'cause': 'No disease detected.',
-        'cure': 'Maintain fertility with NPK; space plants for air flow; irrigate evenly.'
+    "Potato_Late_blight": {
+        "cause": "Caused by Phytophthora infestans, spreading rapidly in cool, moist conditions.",
+        "cure": "Use appropriate fungicides; destroy infected volunteers; plant certified seed.",
     },
 
-    'Grape__Black_rot': {
-        'cause': 'Caused by the fungus Guignardia bidwellii, spores spread by rain from infected debris.',
-        'cure': 'Apply mancozeb pre-bloom; prune for canopy openness; sanitize tools.'
+    "Potato__healthy": {
+        "cause": "No disease detected.",
+        "cure": "Maintain balanced fertilization; provide adequate spacing and drainage.",
     },
 
-    'Grape_Esca(Black_Measles)': {
-        'cause': 'Caused by a complex of fungi entering through pruning wounds.',
-        'cure': 'Delay pruning until dry weather; remove infected vines.'
+    "Corn_Common_rust": {
+        "cause": "Caused by the fungus Puccinia sorghi.",
+        "cure": "Plant resistant hybrids; apply appropriate fungicide treatment when required; monitor regularly.",
     },
 
-    'Grape__Leaf_blight(Isariopsis_Leaf_Spot)': {
-        'cause': 'Caused by fungal leaf spot that spreads under wet conditions.',
-        'cure': 'Use appropriate fungicides; mulch to reduce soil splash; remove lower infected leaves.'
+    "Corn_Northern_Leaf_Blight": {
+        "cause": "Caused by Exserohilum turcicum and favored by moderate temperatures and high humidity.",
+        "cure": "Use resistant varieties; apply appropriate fungicide treatment; rotate crops.",
     },
 
-    'Grape___healthy': {
-        'cause': 'No disease detected.',
-        'cure': 'Trellis for sun exposure; balanced pruning; monitor soil moisture.'
+    "Corn__healthy": {
+        "cause": "No disease detected.",
+        "cure": "Maintain fertility with NPK; space plants for airflow; irrigate evenly.",
     },
 
-    'Orange__Haunglongbing(Citrus_greening)': {
-        'cause': 'Caused by the bacterium Liberibacter asiaticus, transmitted by Asian citrus psyllid.',
-        'cure': 'Remove infected trees; control psyllids; focus on prevention because there is no cure.'
+    "Apple__healthy": {
+        "cause": "No disease detected.",
+        "cure": "Maintain balanced fertilizer, regular watering, pruning, and monitoring.",
     },
 
-    'Peach__Bacterial_spot': {
-        'cause': 'Caused by Xanthomonas arboricola pv. pruni, spread by rain and splashing.',
-        'cure': 'Copper sprays at bud swell; choose resistant varieties; avoid overhead watering.'
+    "Blueberry__healthy": {
+        "cause": "No disease detected.",
+        "cure": "Continue good crop management and monitor for early signs of disease.",
     },
 
-    'Peach__healthy': {
-        'cause': 'No disease detected.',
-        'cure': 'Thin fruit for size; fertilize post-harvest; ensure good drainage.'
+    "Cherry__healthy": {
+        "cause": "No disease detected.",
+        "cure": "Maintain good pruning, nutrition, sunlight, and soil drainage.",
     },
 
-    'Pepper,bell_Bacterial_spot': {
-        'cause': 'Caused by Xanthomonas species, entering through wounds in warm, wet conditions.',
-        'cure': 'Use copper bactericides; rotate crops; use disease-free seeds.'
+    "Grape___healthy": {
+        "cause": "No disease detected.",
+        "cure": "Maintain balanced pruning, sunlight, airflow, and soil moisture.",
     },
 
-    'Pepper,_bell__healthy': {
-        'cause': 'No disease detected.',
-        'cure': 'Stake for air flow; consistent watering; mulch to suppress weeds.'
+    "Peach__healthy": {
+        "cause": "No disease detected.",
+        "cure": "Maintain good drainage, nutrition, and regular crop monitoring.",
     },
 
-    'Potato__Early_blight': {
-        'cause': 'Caused by the fungus Alternaria solani.',
-        'cure': 'Apply appropriate fungicides; rotate crops; maintain plant hygiene.'
+    "Pepper,_bell__healthy": {
+        "cause": "No disease detected.",
+        "cure": "Maintain consistent watering, airflow, nutrition, and crop hygiene.",
     },
 
-    'Potato_Late_blight': {
-        'cause': 'Caused by Phytophthora infestans, spreading rapidly in cool, moist conditions.',
-        'cure': 'Use appropriate fungicides; destroy infected volunteers; plant certified seed.'
+    "Raspberry__healthy": {
+        "cause": "No disease detected.",
+        "cure": "Maintain proper spacing, trellising, soil conditions, and monitoring.",
     },
 
-    'Potato__healthy': {
-        'cause': 'No disease detected.',
-        'cure': 'Maintain balanced fertilization; provide adequate spacing and drainage.'
+    "Soybean_healthy": {
+        "cause": "No disease detected.",
+        "cure": "Maintain appropriate row spacing, fertility, irrigation, and weed control.",
     },
 
-    'Raspberry__healthy': {
-        'cause': 'No disease detected.',
-        'cure': 'Trellis canes; thin annually; maintain appropriate soil conditions.'
+    "Strawberry__healthy": {
+        "cause": "No disease detected.",
+        "cure": "Maintain proper irrigation, soil conditions, mulch, and plant hygiene.",
     },
 
-    'Soybean_healthy': {
-        'cause': 'No disease detected.',
-        'cure': 'Inoculate seeds; maintain appropriate row spacing; control weeds.'
+    "Background_without_leaves": {
+        "cause": "The uploaded image does not appear to contain a plant leaf.",
+        "cure": "Please upload a clear image of a crop or plant leaf.",
     },
-
-    'Squash__Powdery_mildew': {
-        'cause': 'Caused by Podosphaera xanthii.',
-        'cure': 'Use appropriate fungicides; improve air circulation; use resistant varieties.'
-    },
-
-    'Strawberry__Leaf_scorch': {
-        'cause': 'Caused by the fungus Diplocarpon earliae, with spores spreading through wet foliage.',
-        'cure': 'Apply appropriate fungicides; improve drainage; remove old infected leaves.'
-    },
-
-    'Strawberry__healthy': {
-        'cause': 'No disease detected.',
-        'cure': 'Maintain proper mulch, soil conditions, irrigation and plant hygiene.'
-    },
-
-    'Tomato__Bacterial_spot': {
-        'cause': 'Caused by Xanthomonas species, commonly spreading during warm, wet conditions.',
-        'cure': 'Use appropriate copper-based treatments; rotate crops; use disease-free seeds.'
-    },
-
-    'Tomato_Early_blight': {
-        'cause': 'Caused by Alternaria solani and commonly spreads through soil splash in humid weather.',
-        'cure': 'Use appropriate fungicides; stake plants; mulch heavily.'
-    },
-
-    'Tomato_Late_blight': {
-        'cause': 'Caused by Phytophthora infestans and spreads rapidly during cool, moist conditions.',
-        'cure': 'Use appropriate fungicides; remove infected plant material; improve ventilation.'
-    },
-
-    'Tomato__Leaf_Mold': {
-        'cause': 'Caused by Passalora fulva and associated with high humidity.',
-        'cure': 'Improve ventilation; reduce humidity; use resistant varieties.'
-    },
-
-    'Tomato__Septoria_leaf_spot': {
-        'cause': 'Caused by Septoria lycopersici and spreads during wet weather.',
-        'cure': 'Use appropriate fungicides; rotate crops; remove affected lower leaves.'
-    },
-
-    'Tomato_Spider_mites Two-spotted_spider_mite': {
-        'cause': 'Caused by Tetranychus urticae mites, which thrive in hot, dry conditions.',
-        'cure': 'Use insecticidal soap or appropriate miticides; increase humidity; encourage natural predators.'
-    },
-
-    'Tomato__Target_Spot': {
-        'cause': 'Caused by Corynespora cassiicola and favored by warm, humid conditions.',
-        'cure': 'Use appropriate fungicides; sanitize growing areas; avoid overhead irrigation.'
-    },
-
-    'Tomato__Tomato_Yellow_Leaf_Curl_Virus': {
-        'cause': 'Transmitted by whiteflies (Bemisia tabaci).',
-        'cure': 'Control whiteflies; use reflective mulch; remove infected plants.'
-    },
-
-    'Tomato_Tomato_mosaic_virus': {
-        'cause': 'Caused by Tobacco mosaic virus and can spread through handling and contaminated tools.',
-        'cure': 'Remove infected plants; sanitize tools; use resistant varieties.'
-    },
-
-    'Tomato__healthy': {
-        'cause': 'No disease detected.',
-        'cure': 'Provide full sun, even watering and adequate plant support.'
-    }
 }
-
-
-# ============================================================
-# LOAD DISEASE DICTIONARY
-# ============================================================
-
-plant_disease = [
-    {
-        'name': disease_name,
-        'cause': info['cause'],
-        'cure': info['cure']
-    }
-    for disease_name, info in data.items()
-]
-
-try:
-
-    with open(
-        "plant_disease.json",
-        "r",
-        encoding="utf-8"
-    ) as file:
-
-        plant_disease = json.load(file)
-
-    disease_dict = {
-        disease['name']: disease
-        for disease in plant_disease
-    }
-
-    print("✅ Disease dictionary loaded successfully")
-
-except Exception as e:
-
-    print(f"⚠️ Could not load plant_disease.json: {e}")
-
-    # Use the built-in disease information instead
-    disease_dict = data.copy()
-
-    print("✅ Using built-in disease dictionary")
 
 
 # ============================================================
 # LOAD MODEL
 # ============================================================
 
+model = None
+
 try:
+    if not os.path.exists(MODEL_PATH):
+        print(f"WARNING: Model file not found: {MODEL_PATH}")
+    else:
+        model = tf.keras.models.load_model(MODEL_PATH)
 
-    model = tf.keras.models.load_model(
-        "image_analysis/plant_disease_recog_model_pwp (2).keras"
-    )
-
-    print("✅ Model loaded successfully")
-
-    # Print model output shape for debugging
-    try:
-        print(f"🧠 Model output shape: {model.output_shape}")
-    except Exception:
-        pass
+        print("Model loaded successfully")
+        print(f"Model path: {MODEL_PATH}")
+        print(f"Model output shape: {model.output_shape}")
 
 except Exception as e:
-
-    print(f"❌ Error loading model: {e}")
-
+    print(f"ERROR loading disease model: {e}")
     model = None
 
 
@@ -331,147 +227,69 @@ except Exception as e:
 # ============================================================
 
 def extract_features(image_path: str):
+    """
+    Load and preprocess image for the 39-class Keras model.
+    """
 
     try:
+        image = Image.open(image_path).convert("RGB")
 
-        img = Image.open(image_path).convert("RGB")
+        image = image.resize(IMG_SIZE)
 
-        img = img.resize(IMG_SIZE)
+        image_array = np.asarray(image, dtype=np.float32)
 
-        img_array = np.array(img)
+        image_array = image_array / 255.0
 
-        img_array = tf.keras.applications.efficientnet.preprocess_input(
-            img_array
-        )
-
-        img_array = np.expand_dims(
-            img_array,
+        image_array = np.expand_dims(
+            image_array,
             axis=0
         )
 
-        return img_array
+        return image_array
 
     except Exception as e:
-
-        print(f"❌ Error extracting features: {e}")
-
+        print(f"Image preprocessing error: {e}")
         return None
 
 
 # ============================================================
-# BASIC PLANT IMAGE VALIDATION
+# PREDICTION
 # ============================================================
 
-def is_likely_plant_image(image_path: str):
-
+def model_predict(image_path: str) -> dict:
     """
-    Performs a basic visual check before sending the image
-    to the disease classifier.
+    Run crop disease prediction.
 
-    IMPORTANT:
-    This is a lightweight first-pass filter.
-    It is NOT a replacement for a dedicated plant/non-plant model.
+    Returns:
+        predicted_class
+        confidence
+        cause
+        cure
     """
-
-    try:
-
-        img = Image.open(image_path).convert("RGB")
-
-        img = img.resize((224, 224))
-
-        img_array = np.array(img).astype(
-            np.float32
-        ) / 255.0
-
-        red = img_array[:, :, 0]
-        green = img_array[:, :, 1]
-        blue = img_array[:, :, 2]
-
-        # Pixels where green is noticeably stronger
-        # than red and blue.
-        green_pixels = (
-            (green > red * 1.05)
-            &
-            (green > blue * 1.05)
-            &
-            (green > 0.20)
-        )
-
-        green_ratio = float(
-            np.mean(green_pixels)
-        )
-
-        # Overall image statistics
-        mean_red = float(np.mean(red))
-        mean_green = float(np.mean(green))
-        mean_blue = float(np.mean(blue))
-
-        print(
-            "🌿 Image check -> "
-            f"R:{mean_red:.3f}, "
-            f"G:{mean_green:.3f}, "
-            f"B:{mean_blue:.3f}, "
-            f"Green ratio:{green_ratio:.3f}"
-        )
-
-        # Very low amount of plant-like green
-        if green_ratio < 0.03:
-
-            print(
-                "🚫 Image rejected: "
-                "not enough plant-like pixels."
-            )
-
-            return False
-
-        return True
-
-    except Exception as e:
-
-        print(
-            f"❌ Image validation error: {e}"
-        )
-
-        return False
-
-
-# ============================================================
-# MODEL PREDICTION
-# ============================================================
-
-def model_predict(image_path: str):
 
     # --------------------------------------------------------
-    # STEP 1: Validate image
+    # STEP 1: Check model
     # --------------------------------------------------------
 
-    if not is_likely_plant_image(image_path):
-
+    if model is None:
         return {
-            "predicted_class": "Not a plant image",
+            "predicted_class": "Model unavailable",
             "confidence": 0.0,
-            "cause": (
-                "The uploaded image does not appear "
-                "to contain a plant leaf."
-            ),
-            "cure": (
-                "Please upload a clear image of "
-                "a crop or plant leaf."
-            )
+            "cause": "The crop disease model could not be loaded.",
+            "cure": "Please check the model file and TensorFlow installation.",
         }
 
 
     # --------------------------------------------------------
-    # STEP 2: Check model
+    # STEP 2: Check image
     # --------------------------------------------------------
 
-    if model is None:
-
+    if not image_path or not os.path.exists(image_path):
         return {
-            "predicted_class": "Model unavailable",
+            "predicted_class": "Image not found",
             "confidence": 0.0,
-            "cause": "Model not loaded properly.",
-            "cure": "Please check the model file."
+            "cause": "The uploaded image could not be found.",
+            "cure": "Please upload the image again.",
         }
 
 
@@ -479,22 +297,19 @@ def model_predict(image_path: str):
     # STEP 3: Extract image features
     # --------------------------------------------------------
 
-    img_array = extract_features(
-        image_path
-    )
+    img_array = extract_features(image_path)
 
     if img_array is None:
-
         return {
             "predicted_class": "Image processing failed",
             "confidence": 0.0,
             "cause": "Could not process the uploaded image.",
-            "cure": "Please try with a different image."
+            "cure": "Please try with a different crop leaf image.",
         }
 
 
     # --------------------------------------------------------
-    # STEP 4: Run CNN
+    # STEP 4: Run model
     # --------------------------------------------------------
 
     try:
@@ -504,150 +319,100 @@ def model_predict(image_path: str):
             verbose=0
         )
 
-        print(
-            f"🔍 Prediction shape: "
-            f"{prediction.shape}"
-        )
+        prediction_values = prediction[0]
 
         print(
-            f"🔍 Raw probabilities: "
-            f"{prediction[0]}"
+            f"Prediction shape: {prediction.shape}"
         )
 
         idx = int(
-            np.argmax(
-                prediction[0]
-            )
+            np.argmax(prediction_values)
         )
 
-        print(
-            f"🔍 Argmax index: {idx}"
-        )
-
-
         # ----------------------------------------------------
-        # STEP 5: Safely handle model output
+        # STEP 5: Validate class index
         # ----------------------------------------------------
 
-        if idx >= len(label):
-
-            print(
-                "⚠️ Model output index is outside "
-                "the label list."
-            )
+        if idx >= len(LABELS):
 
             return {
-                "predicted_class": "Not a plant image",
+                "predicted_class": "Unsupported prediction",
                 "confidence": 0.0,
-                "cause": (
-                    "The model produced an unsupported "
-                    "prediction class."
-                ),
-                "cure": (
-                    "Please upload a clear crop leaf image."
-                )
+                "cause": "The model produced an unsupported class.",
+                "cure": "Please upload a clear crop leaf image.",
             }
 
 
-        predicted_class_name = label[idx]
+        predicted_class = LABELS[idx]
 
         confidence = float(
-            prediction[0][idx]
+            prediction_values[idx]
+        )
+
+        # Keep confidence within API range.
+        confidence = max(
+            0.0,
+            min(confidence, 1.0)
+        )
+
+
+        print(
+            f"Predicted: {predicted_class}"
         )
 
         print(
-            f"🔍 Predicted: "
-            f"{predicted_class_name}, "
             f"Confidence: {confidence:.4f}"
         )
 
 
         # ----------------------------------------------------
-        # STEP 6: Background class
+        # STEP 6: Background / invalid image
         # ----------------------------------------------------
 
-        if (
-            predicted_class_name
-            == "Background_without_leaves"
-        ):
+        if predicted_class == "Background_without_leaves":
 
             return {
                 "predicted_class": "Not a plant image",
                 "confidence": confidence,
-                "cause": (
-                    "The uploaded image does not appear "
-                    "to contain a plant leaf."
-                ),
-                "cure": (
-                    "Please upload a clear image of "
-                    "a crop or plant leaf."
-                )
+                "cause": "The uploaded image does not appear to contain a plant leaf.",
+                "cure": "Please upload a clear crop leaf image.",
             }
 
 
         # ----------------------------------------------------
-        # STEP 7: Get disease information
+        # STEP 7: Disease information
         # ----------------------------------------------------
 
-        prediction_info = disease_dict.get(
-            predicted_class_name,
-            {}
+        info = DISEASE_INFO.get(
+            predicted_class,
+            {
+                "cause": "Disease information is not available in the local knowledge base.",
+                "cure": "Please consult the crop advisory module for further guidance.",
+            }
         )
 
 
         # ----------------------------------------------------
-        # STEP 8: Return result
+        # STEP 8: Final result
         # ----------------------------------------------------
 
         return {
-
-            "predicted_class":
-                predicted_class_name,
-
-            "confidence":
-                confidence,
-
-            "cause":
-                prediction_info.get(
-                    "cause",
-                    "Information not available"
-                ),
-
-            "cure":
-                prediction_info.get(
-                    "cure",
-                    "Information not available"
-                )
+            "predicted_class": predicted_class,
+            "confidence": confidence,
+            "cause": info["cause"],
+            "cure": info["cure"],
         }
 
-
-    # --------------------------------------------------------
-    # STEP 9: Error handling
-    # --------------------------------------------------------
 
     except Exception as e:
 
         print(
-            f"❌ Error during prediction: {e}"
-        )
-
-        import traceback
-
-        print(
-            traceback.format_exc()
+            f"Prediction error: {e}"
         )
 
         return {
-
-            "predicted_class":
-                "Prediction failed",
-
-            "confidence":
-                0.0,
-
-            "cause":
-                f"Error during prediction: {e}",
-
-            "cure":
-                "Please try again."
+            "predicted_class": "Prediction failed",
+            "confidence": 0.0,
+            "cause": f"Model prediction failed: {str(e)}",
+            "cure": "Please try another clear crop leaf image.",
         }

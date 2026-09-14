@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = "https://jslkprxq-8000.inc1.devtunnels.ms/";
+  static const String baseUrl = "http://localhost:8000";
 
   static Future<bool> addCrop(
     Map<String, dynamic> cropData,

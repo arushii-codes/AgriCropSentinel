@@ -1,16 +1,63 @@
-# farmer_app
+# 🌱 AgriCropSentinel
 
-A new Flutter project.
+### AI-Powered Crop Disease Detection, Risk Fusion & Early-Warning Platform
 
-## Getting Started
+AgriCropSentinel is an AI-powered agricultural decision-support platform designed to help farmers and agricultural extension officers detect crop diseases early, assess outbreak risk, and receive localized Integrated Pest Management (IPM) recommendations.
 
-This project is a starting point for a Flutter application.
+The system combines **Computer Vision, Weather Intelligence, Crop Growth Stage, Nearby Disease Cases, Explainable AI, GIS Outbreak Intelligence, and Multilingual Farmer Assistance** into a unified crop-health platform.
 
-A few resources to get you started if this is your first Flutter project:
+---
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## 🚜 Problem Statement
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Crop diseases and pest infestations can spread rapidly before farmers are able to identify them.
+
+Traditional crop-health monitoring often depends on:
+
+- Manual inspection
+- Delayed disease identification
+- Limited access to agricultural experts
+- Weather information being considered separately
+- Lack of regional outbreak intelligence
+- Generic treatment recommendations
+
+This can result in delayed intervention, unnecessary pesticide use, and crop losses.
+
+AgriCropSentinel addresses this problem by combining multiple sources of agricultural intelligence into a single risk-assessment system.
+
+---
+
+# 💡 Solution
+
+AgriCropSentinel follows a multimodal crop-health assessment approach:
+
+```text
+              🌿 Crop Image
+                   │
+                   ▼
+          🤖 Computer Vision
+                   │
+                   │ Disease + Confidence
+                   ▼
+       ┌───────────────────────────┐
+       │   MULTIMODAL RISK FUSION  │
+       └───────────────────────────┘
+          ▲          ▲          ▲
+          │          │          │
+     ☁️ Weather   🌾 Crop    📍 Nearby
+        Risk       Stage       Cases
+          │          │          │
+          └──────────┼──────────┘
+                     ▼
+              📊 Risk Score
+                     │
+          ┌──────────┴──────────┐
+          ▼                     ▼
+     🔍 Explainable AI      🔔 Early Warning
+          │                     │
+          ▼                     ▼
+     🛡️ IPM Advisory       👨‍🌾 Farmer Action
+                               
+                     │
+                     ▼
+              🗺️ Officer GIS
