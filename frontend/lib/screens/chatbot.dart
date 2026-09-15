@@ -1,9 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:http/http.dart' as http;
 
 /// ===============================================================
 /// AGRICROPSENTINEL - AI CHAT SCREEN
@@ -50,7 +50,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // BACKEND
   // =============================================================
 
-  static const String backendUrl = "https://9406-2402-8100-2b63-7704-20d0-a3ae-9499-bab3.ngrok-free.app";
+  static const String backendUrl = "https://8f24-103-174-28-76.ngrok-free.app";
 
   // =============================================================
   // CONTROLLERS
@@ -377,42 +377,60 @@ class _ChatScreenState extends State<ChatScreen> {
       // API REQUEST
       // =========================================================
 
-      final response = await http
-          .post(
-            uri,
-            headers: {
-              "Content-Type": "application/json",
-              "Accept": "application/json",
-            },
-            body: jsonEncode({
-              "prompt": text,
-            }),
-          )
-          .timeout(
-            const Duration(seconds: 30),
-          );
+      int statusCode = 0;
+      String responseBody = "";
+
+      for (int attempt = 0; attempt < 2; attempt++) {
+        HttpClient? ioClient;
+        try {
+          ioClient = HttpClient()
+            ..badCertificateCallback = ((cert, host, port) => true)
+            ..connectionTimeout = const Duration(seconds: 15);
+
+          final req = await ioClient.postUrl(uri);
+          req.headers.set(HttpHeaders.contentTypeHeader, 'application/json; charset=utf-8');
+          req.headers.set(HttpHeaders.acceptHeader, 'application/json');
+          req.headers.set('ngrok-skip-browser-warning', 'true');
+          req.headers.set(HttpHeaders.connectionHeader, 'close');
+
+          final bodyBytes = utf8.encode(jsonEncode({"prompt": text}));
+          req.contentLength = bodyBytes.length;
+          req.add(bodyBytes);
+
+          final resp = await req.close().timeout(const Duration(seconds: 30));
+          statusCode = resp.statusCode;
+          responseBody = await resp.transform(utf8.decoder).join();
+          break;
+        } catch (e) {
+          debugPrint("Direct HTTP attempt $attempt failed: $e");
+          if (attempt == 1) rethrow;
+          await Future.delayed(const Duration(milliseconds: 300));
+        } finally {
+          ioClient?.close(force: true);
+        }
+      }
 
       // =========================================================
       // DEBUG RESPONSE
       // =========================================================
 
       debugPrint(
-        "Chat status: ${response.statusCode}",
+        "Chat status: $statusCode",
       );
 
       debugPrint(
-        "Chat response: ${response.body}",
+        "Chat response: $responseBody",
       );
 
       // =========================================================
       // ERROR RESPONSE
       // =========================================================
 
-      if (response.statusCode != 200) {
+      if (statusCode != 200) {
         throw Exception(
           "Chat API error: "
-          "${response.statusCode}\n"
-          "${response.body}",
+          "$statusCode\n"
+          "$responseBody",
         );
       }
 
@@ -421,7 +439,7 @@ class _ChatScreenState extends State<ChatScreen> {
       // =========================================================
 
       final dynamic decoded =
-          jsonDecode(response.body);
+          jsonDecode(responseBody);
 
       // =========================================================
       // EXTRACT AI RESPONSE

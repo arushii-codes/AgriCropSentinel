@@ -1,4 +1,5 @@
 import os
+import requests
 from typing import Optional
 
 # ============================================================
@@ -285,14 +286,10 @@ def get_gemini_response(
     context: Optional[str] = None,
 ) -> str:
 
-    client = _get_gemini_client()
+    api_key = os.getenv("GEMINI_API_KEY")
 
-    # --------------------------------------------------------
-    # FALLBACK IF GEMINI IS NOT CONFIGURED
-    # --------------------------------------------------------
-
-    if client is None:
-
+    if not api_key:
+        print("[CHATBOT] GEMINI_API_KEY not configured, using fallback.")
         return fallback_response(
             prompt,
             language,
@@ -349,7 +346,7 @@ Your purpose is to help farmers with:
 Important rules:
 
 - Give practical farmer-friendly advice.
-- Keep answers easy to understand.
+- Keep answers easy to understand and concise.
 - Do not claim that an AI diagnosis is 100% certain.
 - Recommend expert validation when necessary.
 - Do not invent pesticide dosage.
@@ -384,41 +381,60 @@ Current crop context:
     )
 
     # --------------------------------------------------------
-    # GEMINI CALL
+    # GEMINI REST API CALL
     # --------------------------------------------------------
 
-    try:
+    models_to_try = [
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash",
+    ]
 
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=final_prompt,
-        )
+    for model_name in models_to_try:
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+            payload = {
+                "contents": [
+                    {
+                        "parts": [{"text": final_prompt}]
+                    }
+                ],
+                "generationConfig": {
+                    "temperature": 0.7,
+                    "maxOutputTokens": 600,
+                }
+            }
 
-        answer = getattr(
-            response,
-            "text",
-            None,
-        )
+            res = requests.post(
+                url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=6,
+            )
 
-        if answer and answer.strip():
+            if res.status_code == 200:
+                data = res.json()
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts and "text" in parts[0]:
+                        answer = parts[0]["text"].strip()
+                        if answer:
+                            return answer
 
-            return answer.strip()
+            print(
+                f"[GEMINI WARNING] Model {model_name} status {res.status_code}: {res.text[:200]}"
+            )
 
-        return fallback_response(
-            prompt,
-            language,
-        )
+        except Exception as e:
+            print(
+                f"[GEMINI ERROR with {model_name}] {e}"
+            )
 
-    except Exception as e:
-
-        print(
-            f"[GEMINI ERROR] {e}"
-        )
-
-        return fallback_response(
-            prompt,
-            language,
-        )
+    return fallback_response(
+        prompt,
+        language,
+    )
 
 
 # ============================================================

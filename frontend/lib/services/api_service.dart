@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-static const String baseUrl = "https://9406-2402-8100-2b63-7704-20d0-a3ae-9499-bab3.ngrok-free.app";
+static const String baseUrl = "https://8f24-103-174-28-76.ngrok-free.app";
   static Future<void> _saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('jwt_token', token);

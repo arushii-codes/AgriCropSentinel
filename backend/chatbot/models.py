@@ -3,7 +3,13 @@ from typing import Optional
 
 
 class ChatRequest(BaseModel):
-    prompt: str
+    prompt: Optional[str] = None
+    message: Optional[str] = None
+    language: Optional[str] = "en"
+    crop: Optional[str] = None
+    disease: Optional[str] = None
+    risk_level: Optional[str] = None
+    weather_risk: Optional[float] = None
 
 
 class DashboardResponse(BaseModel):

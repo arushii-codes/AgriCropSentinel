@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File
+import asyncio
 import traceback
 import datetime
 import shutil
@@ -138,7 +139,10 @@ async def save_chat_to_db(
 # TEXT CHAT
 # ============================================================
 
+@router.post("")
+@router.post("/")
 @router.post("/chat")
+@router.post("/general")
 async def chat(
     request: ChatRequest
 ):
@@ -257,10 +261,11 @@ async def chat(
         # GEMINI
         # ----------------------------------------------------
 
-        response = get_general_ai_response(
+        response = await asyncio.to_thread(
+            get_general_ai_response,
             prompt=message,
             language=language,
-            context=context
+            context=context,
         )
 
         # ----------------------------------------------------
@@ -302,9 +307,13 @@ async def chat(
 
             "success": True,
 
-            "message": message,
-
             "response": response,
+
+            "reply": response,
+
+            "message": response,
+
+            "prompt": message,
 
             "language": language,
 
@@ -338,6 +347,7 @@ async def chat(
 # ============================================================
 
 @router.post("/voice_chat")
+@router.post("/voice")
 async def voice_chat(
     file: UploadFile = File(...)
 ):

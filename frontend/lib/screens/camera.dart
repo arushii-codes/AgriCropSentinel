@@ -19,7 +19,7 @@ class _CameraScreenState extends State<CameraScreen> {
   // BACKEND
   // ============================================================
 
-  static const String backendUrl = 'https://9406-2402-8100-2b63-7704-20d0-a3ae-9499-bab3.ngrok-free.app';
+  static const String backendUrl = 'https://8f24-103-174-28-76.ngrok-free.app';
 
   // ============================================================
   // SERVICES
